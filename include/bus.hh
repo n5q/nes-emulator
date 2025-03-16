@@ -1,10 +1,10 @@
-#ifndef BUS
-#define BUS
-#endif
+#ifndef BUS_HH
+#define BUS_HH
 
 #include <cstdint>
 #include <array>
-#include "6502.hh"
+
+#include "mos6502.hh" 
 
 class Bus {
 public:
@@ -12,9 +12,11 @@ public:
   ~Bus();
 
   // devices on bus
-  6502 cpu;
+  MOS6502 cpu;
   std::array<uint8_t, 65536> mem; // 64kb ram
 
   void write(uint16_t addr, uint8_t data);
   uint8_t read(uint16_t addr);
 };
+
+#endif
