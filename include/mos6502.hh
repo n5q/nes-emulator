@@ -20,6 +20,14 @@ public:
     uint16_t pc  = 0x0000; // program counter
     uint8_t  psr = 0x00;   // program status register
 
+    // clock 
+    void clk();
+
+    // interrupts
+    void reset();
+    void irq();
+    void nmi();
+
     // flags which are stored in the psr
     enum FLAG : uint8_t {
         CARRY     = 1 << 0,
@@ -38,7 +46,7 @@ public:
 
     uint8_t ABS();  uint8_t ABX();  uint8_t ABY();
     uint8_t IMM();  uint8_t IMP();  uint8_t IND();
-    uint8_t INX();  uint8_t INY();  uint8_t REL();
+    uint8_t IDX();  uint8_t IDY();  uint8_t REL();
     uint8_t ZPG();  uint8_t ZPX();  uint8_t ZPY();
 
     // opcodes, 56 legal and 169 illegal
@@ -62,6 +70,13 @@ public:
     // illegal opcodes
     uint8_t XXX();
 
+    uint8_t opcode = 0x00;
+    uint16_t addr = 0x0000;
+    int8_t disp = 0x00; // displacement for branches
+    uint8_t cycles = 0;
+
+    uint8_t fetch();
+    uint8_t fetched = 0x00;
 
 private:
     Bus *bus = nullptr;
