@@ -79,6 +79,11 @@ public:
     uint8_t fetched = 0x00;
 
 private:
+    struct Instruction {
+        uint8_t 
+        uint8_t MOS6502::*addr_mode;
+    }
+
     Bus *bus = nullptr;
     void write(uint16_t addr, uint8_t data);
     uint8_t read(uint16_t addr);
