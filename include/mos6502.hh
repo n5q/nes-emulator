@@ -2,6 +2,8 @@
 #define MOS6502_HH
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 class Bus;
 
@@ -72,6 +74,7 @@ public:
 
     uint8_t opcode = 0x00;
     uint16_t addr = 0x0000;
+    uint16_t addr_branch = 0x0000;
     int8_t disp = 0x00; // displacement for branches
     uint8_t cycles = 0;
 
@@ -80,9 +83,13 @@ public:
 
 private:
     struct Instruction {
-        uint8_t 
-        uint8_t MOS6502::*addr_mode;
-    }
+        std::string inst_name;
+        uint8_t (MOS6502::*opcode)();
+        uint8_t (MOS6502::*addr_mode)();
+        uint8_t inst_cycles;
+    };
+
+    std::vector<MOS6502::Instruction> lookup;
 
     Bus *bus = nullptr;
     void write(uint16_t addr, uint8_t data);
