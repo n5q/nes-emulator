@@ -77,6 +77,7 @@ public:
     uint16_t addr_branch = 0x0000;
     int8_t disp = 0x00; // displacement for branches
     uint8_t cycles = 0;
+    uint8_t inst_cycles = 0;
 
     uint8_t fetch();
     uint8_t fetched = 0x00;
@@ -95,6 +96,7 @@ private:
     void write(uint16_t addr, uint8_t data);
     uint8_t read(uint16_t addr);
 
+    bool get_flag(FLAG f);
     void set_flag(FLAG f);
     void clear_flag(FLAG f);
 };

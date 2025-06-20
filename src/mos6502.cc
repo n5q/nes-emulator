@@ -119,12 +119,36 @@ uint8_t MOS6502::read(uint16_t addr) {
     return 0x00;
 }
 
+bool MOS6502::get_flag(FLAG f) {
+    return (this->psr & f) != 0;
+}
+
 void MOS6502::set_flag(FLAG f) {
     this->psr = (this->psr | f);
 }
 
 void MOS6502::clear_flag(FLAG f) {
     this->psr = (this->psr & ~f);
+}
+
+uint8_t MOS6502::fetch() {
+    this->fetched = this->read(this->addr);
+}
+
+void MOS6502::clk() {
+    if (this->inst_cycles == 0) {
+        this->opcode = this->read(this->pc++);
+        MOS6502::Instruction inst = this->lookup[this->opcode];
+        this->inst_cycles = inst.inst_cycles;
+
+        uint8_t a = (this->*inst.addr_mode)();
+        uint8_t b = (this->*inst.opcode)();
+
+        // additional cycles if needed
+        this->inst_cycles += (a + b);
+    }
+    this->cycles++;
+    this->inst_cycles--;
 }
 
 // ADDRESSING MODES
@@ -236,4 +260,14 @@ uint8_t MOS6502::ZPX() {
 uint8_t MOS6502::ZPY() {
     this->addr = (this->read(this->pc++) + this->y) & 0x00FF;
     return 0;
+}
+
+
+// INSTRUCTIONS
+
+uint8_t MOS6502::ADC() {
+    this->fetch();
+    uint16_t add = (uint16_t) acc + (uint16_t) fetched + (uint16_t) this->get_flag(FLAG::CARRY);
+    
+
 }
