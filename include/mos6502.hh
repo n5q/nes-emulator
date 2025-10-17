@@ -15,7 +15,7 @@ public:
     void connect_bus(Bus *b);
 
     // registers
-    uint8_t  acc = 0x00;   // accumulator
+    uint8_t  a   = 0x00;   // accumulator
     uint8_t  x   = 0x00;   // x register
     uint8_t  y   = 0x00;   // y register
     uint8_t  sp  = 0x00;   // stack pointer
@@ -99,6 +99,7 @@ private:
     bool get_flag(FLAG f);
     void set_flag(FLAG f);
     void clear_flag(FLAG f);
+    void sflag(FLAG f, bool b);
 };
 
 #endif

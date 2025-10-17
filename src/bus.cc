@@ -5,7 +5,7 @@ Bus::Bus() {
         byte = 0x00;
     }
     this->cpu.connect_bus(this);
-}
+} 
 
 Bus::~Bus() {
 
