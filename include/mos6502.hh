@@ -79,8 +79,9 @@ public:
     uint8_t cycles = 0;
     uint8_t inst_cycles = 0;
 
-    uint8_t fetch();
-    uint8_t fetched = 0x00;
+    void fetch();
+    //fetched value
+    uint8_t m = 0x00;
 
 private:
     struct Instruction {

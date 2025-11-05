@@ -143,9 +143,8 @@ void MOS6502::sflag(FLAG f, bool b) {
     }
 }
 
-uint8_t MOS6502::fetch() {
-    fetched = read(addr);
-    return fetched;
+void MOS6502::fetch() {
+    m = read(addr);
 }
 
 void MOS6502::clk() {
@@ -162,6 +161,71 @@ void MOS6502::clk() {
     }
     cycles++;
     inst_cycles--;
+}
+
+void MOS6502::reset() {
+    a = 0;
+    x = 0;
+    y = 0;
+    sp = 0;
+    psr = 0x00 | UNUSED;
+
+    // reset vector - start executing code from here
+    uint16_t reset_vector = 0xFFFC;
+    uint16_t low = read(reset_vector);
+    uint16_t high = read(reset_vector+1);
+    pc = (high << 8) | low;
+
+    addr = 0x0000;
+    addr_branch = 0x0000;
+    m = 0x0000;
+}
+
+void MOS6502::irq() {
+    if (!get_flag(INTERRUPT)) {
+        // write current pc to stack
+        write(0x0100+sp, (pc >> 8) & 0x00FF);
+        sp--;
+        write(0x0100+sp, pc & 0x00FF);
+        sp--;
+
+        // bits set on irq and psr pushed to stack
+        sflag(BREAK, 0);
+        sflag(UNUSED, 1);
+        sflag(INTERRUPT, 1);
+        write(0x0100+sp, psr);
+        sp--;
+
+        uint16_t irq_vector = 0xFFFE;
+        uint16_t low = read(irq_vector);
+        uint16_t high = read(irq_vector+1);
+        pc = (high << 8) | low;    
+
+        cycles = 7;
+    }
+}
+
+// same as irq but not conditional on I flag and different address to jump to
+void MOS6502::nmi() {
+    // write current pc to stack
+    write(0x0100+sp, (pc >> 8) & 0x00FF);
+    sp--;
+    write(0x0100+sp, pc & 0x00FF);
+    sp--;
+
+    // bits set on nmi and psr pushed to stack
+    sflag(BREAK, 0);
+    sflag(UNUSED, 1);
+    sflag(INTERRUPT, 1);
+    write(0x0100+sp, psr);
+    sp--;
+
+    uint16_t nmi_vector = 0xFFFA;
+    uint16_t low = read(nmi_vector);
+    uint16_t high = read(nmi_vector+1);
+    pc = (high << 8) | low;    
+
+    cycles = 7;
 }
 
 // ADDRESSING MODES
@@ -200,7 +264,7 @@ uint8_t MOS6502::IMM() {
 
 // implied (accumulator)
 uint8_t MOS6502::IMP() {
-    fetched = a;
+    m = a;
     return 0;
 }
 
@@ -279,13 +343,20 @@ uint8_t MOS6502::ZPY() {
 // INSTRUCTIONS
 // http://www.6502.org/users/obelisk/6502/reference.html
 
-// ! ADC - Add with Carry
+// ADC - Add with Carry
 // A,Z,C,N = A+M+C
 // This instruction adds the contents of a memory location to the accumulator together with the carry bit. If overflow occurs the carry bit is set, this enables multiple byte addition to be performed.
 
 uint8_t MOS6502::ADC() {
     fetch();
-    // uint16_t add = (uint16_t) a + (uint16_t) fetched + (uint16_t) get_flag(FLAG::CARRY);
+    uint16_t add = (uint16_t) a + (uint16_t) m + (uint16_t) get_flag(CARRY);
+    sflag(CARRY, add > 0xFF);
+    sflag(ZERO, (add & 0x00FF) == 0);
+    sflag(NEGATIVE, add & 128);
+    // V = ~(a+data) * (a+result)
+    sflag(OVERFLOW, (~((uint16_t)a ^ (uint16_t)m) & ((uint16_t)a ^ (uint16_t)add)) & 128);
+
+    a = add & 0x00FF;
     return 1;
 }
 
@@ -293,7 +364,7 @@ uint8_t MOS6502::ADC() {
 // A,Z,N = A&M
 // A logical AND is performed, bit by bit, on the accumulator contents using the contents of a byte of memory
 uint8_t MOS6502::AND() {
-    uint8_t m = fetch();
+    fetch();
     a = a & m;
 
     sflag(ZERO, !a);
@@ -306,7 +377,7 @@ uint8_t MOS6502::AND() {
 // A,Z,C,N = M*2 or M,Z,C,N = M*2
 // This operation shifts all the bits of the accumulator or memory contents one bit left. Bit 0 is set to 0 and bit 7 is placed in the carry flag. The effect of this operation is to multiply the memory contents by 2 (ignoring 2's complement considerations), setting the carry if the result will not fit in 8 bits.
 uint8_t MOS6502::ASL() {
-    uint8_t m = fetch();
+    fetch();
 
     sflag(CARRY, m & (1 << 7));
 
@@ -325,6 +396,269 @@ uint8_t MOS6502::ASL() {
     return 0;
 }
 
+// BCC - Branch if Carry Clear
+// If the carry flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BCC() {
+    fetch();
 
+    if (!get_flag(CARRY)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BCS - Branch if Carry Set
+// If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BCS() {
+    fetch();
+
+    if (get_flag(CARRY)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BEQ - Branch if Equal
+// If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BEQ() {
+    fetch();
+
+    if (get_flag(ZERO)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BIT - Bit Test
+// A & M, N = M7, V = M6
+// This instructions is used to test if one or more bits are set in a target memory location. The mask pattern in A is ANDed with the value in memory to set or clear the zero flag, but the result is not kept. Bits 7 and 6 of the value from memory are copied into the N and V flags.
+uint8_t MOS6502::BIT() {
+    fetch();
+
+    uint8_t bit = a & m;
+    sflag(ZERO, !(bit & 0x00FF));
+    sflag(NEGATIVE, m & (1<<7));
+    sflag(OVERFLOW, m & (1<<8));
+
+    return 0;
+}
+
+// BMI - Branch if Minus
+// If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BMI() {
+    fetch();
+
+    if (get_flag(NEGATIVE)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BNE - Branch if Not Equal
+// If the zero flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BNE() {
+    fetch();
+
+    if (!get_flag(ZERO)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BPL - Branch if Positive
+// If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BPL() {
+    fetch();
+
+    if (!get_flag(NEGATIVE)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BRK - Force Interrupt
+// The BRK instruction forces the generation of an interrupt request. The program counter and processor status are pushed on the stack then the IRQ interrupt vector at $FFFE/F is loaded into the PC and the break flag in the status set to one.
+uint8_t MOS6502::BRK() {
+    pc++;
+    
+    // write current pc to stack
+    write(0x0100+sp, (pc >> 8) & 0x00FF);
+    sp--;
+    write(0x0100+sp, pc & 0x00FF);
+    sp--;
+
+    // bits set on irq and psr pushed to stack
+    write(0x0100+sp, psr | BREAK | UNUSED);
+    sp--;
+    sflag(BREAK, 0);
+    sflag(INTERRUPT, 1);
+
+    uint16_t irq_vector = 0xFFFE;
+    uint16_t low = read(irq_vector);
+    uint16_t high = read(irq_vector+1);
+    pc = (high << 8) | low;    
+
+    return 0;
+}
+
+// BVC - Branch if Overflow Clear
+// If the overflow flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BVC() {
+    fetch();
+
+    if (!get_flag(OVERFLOW)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// BVS - Branch if Overflow Set
+// If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+uint8_t MOS6502::BVC() {
+    fetch();
+
+    if (get_flag(OVERFLOW)) {
+        cycles++;
+        addr_branch = pc + addr;
+
+        // if we cross into new page then take another cycle
+        if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
+            cycles++;
+        }
+
+        pc = addr_branch;
+    }
+
+    return 0;
+}
+
+// CLC - Clear Carry Flag
+// C = 0
+// Set the carry flag to zero.
+uint8_t MOS6502::CLC() {
+    sflag(CARRY, 0);
+}
+
+// CLD - Clear Decimal Mode
+// D = 0
+// Sets the decimal mode flag to zero.
+uint8_t MOS6502::CLD() {
+    sflag(DECIMAL, 0);
+}
+
+// CLI - Clear Interrupt Disable
+// I = 0
+// Clears the interrupt disable flag allowing normal interrupt requests to be serviced.
+uint8_t MOS6502::CLI() {
+    sflag(INTERRUPT, 0);
+}
+
+// CLV - Clear Overflow Flag
+// V = 0
+// Clears the overflow flag.
+uint8_t MOS6502::CLV() {
+    sflag(OVERFLOW, 0);
+}
+
+//! CMP - Compare
+// Z,C,N = A-M
+// This instruction compares the contents of the accumulator with another memory held value and sets the zero and carry flags as appropriate.
+
+// RTI - Return from Interrupt
+// The RTI instruction is used at the end of an interrupt processing routine. It pulls the processor flags from the stack followed by the program counter.
+uint8_t MOS6502::RTI() {
+    // read the psr and pc which we pushed to stack in irq() or nmi()
+    sp++;
+    psr = read(0x0100 + sp);
+    psr &= ~BREAK;
+    psr &= ~UNUSED;
+
+    sp++;
+    pc = (uint16_t) read(0x0100 + sp);
+    sp++;
+    pc |= (uint16_t) read((0x0100 + sp) << 8);
+    return 0;
+}
+
+
+
+// SBC - Subtract with Carry
+// A,Z,C,N = A-M-(1-C)
+// This instruction subtracts the contents of a memory location to the accumulator together with the not of the carry bit. If overflow occurs the carry bit is clear, this enables multiple byte subtraction to be performed.
+uint8_t MOS6502::SBC() {
+    fetch();
+
+    // invert bottom 8 bits
+    uint16_t inverted = ((uint16_t) m) ^ 0x00FF;
+    m = inverted;
+
+    // subtracting equivalent to adding inverse
+    this->ADC();
+    
+    return 1;
+}
 
 
