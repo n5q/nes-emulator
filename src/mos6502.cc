@@ -405,14 +405,13 @@ uint8_t MOS6502::BCC() {
 
     if (!get_flag(CARRY)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -425,14 +424,13 @@ uint8_t MOS6502::BCS() {
 
     if (get_flag(CARRY)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -445,14 +443,13 @@ uint8_t MOS6502::BEQ() {
 
     if (get_flag(ZERO)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -479,14 +476,13 @@ uint8_t MOS6502::BMI() {
 
     if (get_flag(NEGATIVE)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -499,14 +495,13 @@ uint8_t MOS6502::BNE() {
 
     if (!get_flag(ZERO)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -519,14 +514,13 @@ uint8_t MOS6502::BPL() {
 
     if (!get_flag(NEGATIVE)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -564,14 +558,13 @@ uint8_t MOS6502::BVC() {
 
     if (!get_flag(OVERFLOW)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
@@ -584,14 +577,13 @@ uint8_t MOS6502::BVS() {
 
     if (get_flag(OVERFLOW)) {
         cycles++;
-        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr;
+        pc = addr_branch;
     }
 
     return 0;
