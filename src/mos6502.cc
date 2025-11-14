@@ -102,8 +102,10 @@ MOS6502::MOS6502() {
     };
 }
 
+MOS6502::~MOS6502() {}
+
 void MOS6502::connect_bus(Bus *b) {
-    return;
+    this->bus = b;
 }
 
 void MOS6502::write(uint16_t addr, uint8_t data) {
@@ -378,7 +380,6 @@ uint8_t MOS6502::AND() {
 // This operation shifts all the bits of the accumulator or memory contents one bit left. Bit 0 is set to 0 and bit 7 is placed in the carry flag. The effect of this operation is to multiply the memory contents by 2 (ignoring 2's complement considerations), setting the carry if the result will not fit in 8 bits.
 uint8_t MOS6502::ASL() {
     fetch();
-
     sflag(CARRY, m & (1 << 7));
 
     uint8_t tmp = m << 1;
@@ -386,6 +387,7 @@ uint8_t MOS6502::ASL() {
         a = tmp;
     }
     else {
+        fetch();
         write(addr, tmp);
     }
 
@@ -403,14 +405,14 @@ uint8_t MOS6502::BCC() {
 
     if (!get_flag(CARRY)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -423,14 +425,14 @@ uint8_t MOS6502::BCS() {
 
     if (get_flag(CARRY)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -443,14 +445,14 @@ uint8_t MOS6502::BEQ() {
 
     if (get_flag(ZERO)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -465,7 +467,7 @@ uint8_t MOS6502::BIT() {
     uint8_t bit = a & m;
     sflag(ZERO, !(bit & 0x00FF));
     sflag(NEGATIVE, m & (1<<7));
-    sflag(OVERFLOW, m & (1<<8));
+    sflag(OVERFLOW, m & (1<<6));
 
     return 0;
 }
@@ -477,14 +479,14 @@ uint8_t MOS6502::BMI() {
 
     if (get_flag(NEGATIVE)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -497,14 +499,14 @@ uint8_t MOS6502::BNE() {
 
     if (!get_flag(ZERO)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -517,14 +519,14 @@ uint8_t MOS6502::BPL() {
 
     if (!get_flag(NEGATIVE)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -562,14 +564,14 @@ uint8_t MOS6502::BVC() {
 
     if (!get_flag(OVERFLOW)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -577,19 +579,19 @@ uint8_t MOS6502::BVC() {
 
 // BVS - Branch if Overflow Set
 // If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
-uint8_t MOS6502::BVC() {
+uint8_t MOS6502::BVS() {
     fetch();
 
     if (get_flag(OVERFLOW)) {
         cycles++;
-        addr_branch = pc + addr;
+        addr = pc + addr_branch;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
             cycles++;
         }
 
-        pc = addr_branch;
+        pc = addr;
     }
 
     return 0;
@@ -600,6 +602,7 @@ uint8_t MOS6502::BVC() {
 // Set the carry flag to zero.
 uint8_t MOS6502::CLC() {
     sflag(CARRY, 0);
+    return 0;
 }
 
 // CLD - Clear Decimal Mode
@@ -607,6 +610,7 @@ uint8_t MOS6502::CLC() {
 // Sets the decimal mode flag to zero.
 uint8_t MOS6502::CLD() {
     sflag(DECIMAL, 0);
+    return 0;
 }
 
 // CLI - Clear Interrupt Disable
@@ -614,6 +618,7 @@ uint8_t MOS6502::CLD() {
 // Clears the interrupt disable flag allowing normal interrupt requests to be serviced.
 uint8_t MOS6502::CLI() {
     sflag(INTERRUPT, 0);
+    return 0;
 }
 
 // CLV - Clear Overflow Flag
@@ -621,11 +626,279 @@ uint8_t MOS6502::CLI() {
 // Clears the overflow flag.
 uint8_t MOS6502::CLV() {
     sflag(OVERFLOW, 0);
+    return 0;
 }
 
-//! CMP - Compare
+// CMP - Compare
 // Z,C,N = A-M
 // This instruction compares the contents of the accumulator with another memory held value and sets the zero and carry flags as appropriate.
+uint8_t MOS6502::CMP() {
+    fetch();
+    sflag(ZERO, a == m);
+    sflag(NEGATIVE, (a - m) & 128);
+    sflag(CARRY, a >= m);
+    return 1;
+}
+
+// CPX - Compare X Register
+// Z,C,N = X-M
+// This instruction compares the contents of the X register with another memory held value and sets the zero and carry flags as appropriate.
+uint8_t MOS6502::CPX() {
+    fetch();
+    sflag(ZERO, x == m);
+    sflag(NEGATIVE, (x - m) & 128);
+    sflag(CARRY, x >= m);
+    return 1;
+}
+
+// CPY - Compare Y Register
+// Z,C,N = Y-M
+// This instruction compares the contents of the Y register with another memory held value and sets the zero and carry flags as appropriate.
+uint8_t MOS6502::CPY() {
+    fetch();
+    sflag(ZERO, y == m);
+    sflag(NEGATIVE, (y - m) & 128);
+    sflag(CARRY, y >= m);
+    return 1;
+}
+
+// DEC - Decrement Memory
+// M,Z,N = M-1
+// Subtracts one from the value held at a specified memory location setting the zero and negative flags as appropriate.
+uint8_t MOS6502::DEC() {
+    fetch();
+    write(addr, ((uint16_t) m-1) & 0x00FF);
+    sflag(ZERO, !(((uint16_t) m-1) & 0x00FF));
+    sflag(NEGATIVE, ((uint16_t) m-1) & 128);
+    return 0;
+}
+
+// DEX - Decrement X Register
+// X,Z,N = X-1
+// Subtracts one from the X register setting the zero and negative flags as appropriate.
+uint8_t MOS6502::DEX() {
+    x--;
+    sflag(ZERO, !x);
+    sflag(NEGATIVE, x & 128);
+    return 0;
+}
+
+// DEY - Decrement Y Register
+// Y,Z,N = Y-1
+// Subtracts one from the Y register setting the zero and negative flags as appropriate.
+uint8_t MOS6502::DEY() {
+    y--;
+    sflag(ZERO, !y);
+    sflag(NEGATIVE, y & 128);
+    return 0;
+}
+
+// EOR - Exclusive OR
+// A,Z,N = A^M
+// An exclusive OR is performed, bit by bit, on the accumulator contents using the contents of a byte of memory.
+uint8_t MOS6502::EOR() {
+    fetch();
+    a ^= m;
+    sflag(ZERO, !a);
+    sflag(NEGATIVE, a & 128);
+    return 1;
+}
+
+// INC - Increment Memory
+// M,Z,N = M+1
+// Adds one to the value held at a specified memory location setting the zero and negative flags as appropriate.
+uint8_t MOS6502::INC() {
+    fetch();
+    write(addr, ((uint16_t) m+1) & 0x00FF);
+    sflag(ZERO, !(((uint16_t) m+1) & 0x00FF));
+    sflag(NEGATIVE, ((uint16_t) m+1) & 128);
+    return 0;
+}
+
+// INX - Increment X Register
+// X,Z,N = X+1
+// Adds one to the X register setting the zero and negative flags as appropriate.
+uint8_t MOS6502::INX() {
+    x++;
+    sflag(ZERO, !x);
+    sflag(NEGATIVE, x & 128);
+    return 0;
+}
+
+// INY - Increment Y Register
+// Y,Z,N = Y+1
+// Adds one to the Y register setting the zero and negative flags as appropriate.
+uint8_t MOS6502::INY() {
+    y++;
+    sflag(ZERO, !y);
+    sflag(NEGATIVE, y & 128);
+    return 0;
+}
+
+// JMP - Jump
+// Sets the program counter to the address specified by the operand.
+uint8_t MOS6502::JMP() {
+    pc = addr;
+    return 0;
+}
+
+// JSR - Jump to Subroutine
+// The JSR instruction pushes the address (minus one) of the return point on to the stack and then sets the program counter to the target memory address.
+uint8_t MOS6502::JSR() {
+    pc--;
+    write(0x0100 + sp, (pc >> 8) & 0x00FF);
+    sp--;
+    write(0x0100 + sp, pc & 0x00FF);
+    sp--;
+
+    pc = addr;
+    return 0;
+}
+
+// LDA - Load Accumulator
+// A,Z,N = M
+// Loads a byte of memory into the accumulator setting the zero and negative flags as appropriate.
+uint8_t MOS6502::LDA() {
+    fetch();
+    a = m;
+    sflag(ZERO, !a);
+    sflag(NEGATIVE, a & 128);
+    return 1;
+}
+
+// LDX - Load X Register
+// X,Z,N = M
+// Loads a byte of memory into the X register setting the zero and negative flags as appropriate.
+uint8_t MOS6502::LDX() {
+    fetch();
+    x = m;
+    sflag(ZERO, !x);
+    sflag(NEGATIVE, x & 128);
+    return 1;
+}
+
+// LDY - Load Y Register
+// Y,Z,N = M
+// Loads a byte of memory into the Y register setting the zero and negative flags as appropriate.
+uint8_t MOS6502::LDY() {
+    fetch();
+    y = m;
+    sflag(ZERO, !y);
+    sflag(NEGATIVE, y & 128);
+    return 1;
+}
+
+// LSR - Logical Shift Right
+// A,C,Z,N = A/2 or M,C,Z,N = M/2
+// Each of the bits in A or M is shift one place to the right. The bit that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
+uint8_t MOS6502::LSR() {
+    fetch();
+    sflag(CARRY, m & 0x0001);
+    
+    if (lookup[opcode].addr_mode == &MOS6502::IMP) {
+       a = m >> 1; 
+    }
+    else {
+        write(addr, m >> 1);
+    }
+
+    sflag(ZERO, !(m >> 1));
+    sflag(NEGATIVE, (m >> 1) & 128);
+    return 0;
+}
+
+// NOP - No Operation
+// The NOP instruction causes no changes to the processor other than the normal incrementing of the program counter to the next instruction.
+// ? illegal opcodes ? 
+uint8_t MOS6502::NOP() {
+    return 0;
+}
+
+// ORA - Logical Inclusive OR
+// A,Z,N = A|M
+// An inclusive OR is performed, bit by bit, on the accumulator contents using the contents of a byte of memory.
+uint8_t MOS6502::ORA() {
+    fetch();
+    a |= m;
+    sflag(ZERO, !a);
+    sflag(NEGATIVE, a & 128);
+    return 1;
+}
+
+// PHA - Push Accumulator
+// Pushes a copy of the accumulator on to the stack.
+uint8_t MOS6502::PHA() {
+    write(0x0100 + sp, a);
+    sp--;
+    return 0;
+}
+
+// PHP - Push Processor Status
+// Pushes a copy of the status flags on to the stack.
+uint8_t MOS6502::PHP() {
+    write(0x0100 + sp, psr | BREAK | UNUSED);
+    sp--;
+    return 0;
+}
+
+// PLA - Pull Accumulator
+// Pulls an 8 bit value from the stack and into the accumulator. The zero and negative flags are set as appropriate.
+uint8_t MOS6502::PLA() {
+    sp++;
+    a = read(0x0100 + sp);
+    sflag(ZERO, !a);
+    sflag(NEGATIVE, a & 128);
+    return 0;    
+}
+
+// PLP - Pull Processor Status
+// Pulls an 8 bit value from the stack and into the processor flags. The flags will take on new states as determined by the value pulled.
+uint8_t MOS6502::PLP() {
+    sp++;
+    psr = read(0x0100 + sp);
+    psr &= ~BREAK;
+    psr |= UNUSED;
+    return 0;    
+}
+
+// ROL - Rotate Left
+// Move each of the bits in either A or M one place to the left. Bit 0 is filled with the current value of the carry flag whilst the old bit 7 becomes the new carry flag value.
+uint8_t MOS6502::ROL() {
+    fetch();
+    sflag(CARRY, m & 128);
+
+    uint8_t result = (m << 1) | get_flag(CARRY);
+    
+    if (lookup[opcode].addr_mode == &MOS6502::IMP) {
+       a = result; 
+    }
+    else {
+        write(addr, result);
+    }
+
+    sflag(ZERO, !result);
+    sflag(NEGATIVE, result & 128);
+    return 0;
+}
+
+// ROR - Rotate Right
+// Move each of the bits in either A or M one place to the right. Bit 7 is filled with the current value of the carry flag whilst the old bit 0 becomes the new carry flag value.
+uint8_t MOS6502::ROR() {
+    fetch();
+    uint8_t result = (m >> 1) | (get_flag(CARRY) << 7);
+    sflag(CARRY, m & 0x0001);
+    
+    if (lookup[opcode].addr_mode == &MOS6502::IMP) {
+       a = result; 
+    }
+    else {
+        write(addr, result);
+    }
+
+    sflag(ZERO, !result);
+    sflag(NEGATIVE, result & 128);
+    return 0;
+}
 
 // RTI - Return from Interrupt
 // The RTI instruction is used at the end of an interrupt processing routine. It pulls the processor flags from the stack followed by the program counter.
@@ -639,10 +912,20 @@ uint8_t MOS6502::RTI() {
     sp++;
     pc = (uint16_t) read(0x0100 + sp);
     sp++;
-    pc |= (uint16_t) read((0x0100 + sp) << 8);
+    pc |= (uint16_t) (read(0x0100 + sp) << 8);
     return 0;
 }
 
+// RTS - Return from Subroutine
+// The RTS instruction is used at the end of a subroutine to return to the calling routine. It pulls the program counter (minus one) from the stack.
+uint8_t MOS6502::RTS() {
+    sp++;
+    pc = (uint16_t) read(0x0100 + sp);
+    sp++;
+    pc |= (uint16_t) (read(0x0100 + sp) << 8);
+    pc++;
+    return 0;
+}
 
 
 // SBC - Subtract with Carry
@@ -653,12 +936,126 @@ uint8_t MOS6502::SBC() {
 
     // invert bottom 8 bits
     uint16_t inverted = ((uint16_t) m) ^ 0x00FF;
-    m = inverted;
 
-    // subtracting equivalent to adding inverse
-    this->ADC();
-    
+    // logic from ADC()
+    uint16_t add = (uint16_t) a + (uint16_t) inverted + (uint16_t) get_flag(CARRY);
+    sflag(CARRY, add > 0xFF);
+    sflag(ZERO, (add & 0x00FF) == 0);
+    sflag(NEGATIVE, add & 128);
+    // V = ~(a+data) * (a+result)
+    sflag(OVERFLOW, (~((uint16_t)a ^ (uint16_t)inverted) & ((uint16_t)a ^ (uint16_t)add)) & 128);
+
+    a = add & 0x00FF;
     return 1;
 }
 
+// SEC - Set Carry Flag
+// C = 1
+// Set the carry flag to one.
+uint8_t MOS6502::SEC() {
+    sflag(CARRY, 1);
+    return 0;
+}
 
+// SED - Set Decimal Flag
+// D = 1
+// Set the decimal mode flag to one.
+uint8_t MOS6502::SED() {
+    sflag(DECIMAL, 1);
+    return 0;
+}
+
+// SEI - Set Interrupt Disable
+// I = 1
+// Set the interrupt disable flag to one.
+uint8_t MOS6502::SEI() {
+    sflag(INTERRUPT, 1);
+    return 0;
+}
+
+// STA - Store Accumulator
+// M = A
+// Stores the contents of the accumulator into memory.
+uint8_t MOS6502::STA() {
+    write(addr, a);
+    return 0;
+}
+
+// STX - Store X Register
+// M = X
+// Stores the contents of the X register into memory.
+uint8_t MOS6502::STX() {
+    write(addr, x);
+    return 0;
+}
+
+// STY - Store Y Register
+// M = Y
+// Stores the contents of the Y register into memory.
+uint8_t MOS6502::STY() {
+    write(addr, y);
+    return 0;
+}
+
+// TAX - Transfer Accumulator to X
+// X = A
+// Copies the current contents of the accumulator into the X register and sets the zero and negative flags as appropriate.
+uint8_t MOS6502::TAX() {
+    x = a;
+    sflag(ZERO, !x);
+    sflag(NEGATIVE, x & 128);
+    return 0;
+}
+
+// TAY - Transfer Accumulator to Y
+// Y = A
+// Copies the current contents of the accumulator into the Y register and sets the zero and negative flags as appropriate.
+uint8_t MOS6502::TAY() {
+    y = a;
+    sflag(ZERO, !y);
+    sflag(NEGATIVE, y & 128);
+    return 0;
+}
+
+// TSX - Transfer Stack Pointer to X
+// X = S
+// Copies the current contents of the stack register into the X register and sets the zero and negative flags as appropriate.
+uint8_t MOS6502::TSX() {
+    x = sp;
+    sflag(ZERO, !x);
+    sflag(NEGATIVE, x & 128);
+    return 0;
+}
+
+// TXA - Transfer X to Accumulator
+// A = X
+// Copies the current contents of the X register into the accumulator and sets the zero and negative flags as appropriate.
+uint8_t MOS6502::TXA() {
+    a = x;
+    sflag(ZERO, !a);
+    sflag(NEGATIVE, a & 128);
+    return 0;
+}
+
+// TXS - Transfer X to Stack Pointer
+// S = X
+// Copies the current contents of the X register into the stack register.
+uint8_t MOS6502::TXS() {
+    sp = x;
+    return 0;
+}
+
+// TYA - Transfer Y to Accumulator
+// A = Y
+// Copies the current contents of the Y register into the accumulator and sets the zero and negative flags as appropriate.
+uint8_t MOS6502::TYA() {
+    a = y;
+    sflag(ZERO, !a);
+    sflag(NEGATIVE, a & 128);
+    return 0;
+}
+
+// XXX - Illegal opcodes
+uint8_t MOS6502::XXX() {
+    return 0;
+}
