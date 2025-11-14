@@ -169,7 +169,7 @@ void MOS6502::reset() {
     a = 0;
     x = 0;
     y = 0;
-    sp = 0;
+    sp = 0xFD;
     psr = 0x00 | UNUSED;
 
     // reset vector - start executing code from here
@@ -387,7 +387,6 @@ uint8_t MOS6502::ASL() {
         a = tmp;
     }
     else {
-        fetch();
         write(addr, tmp);
     }
 
@@ -401,8 +400,6 @@ uint8_t MOS6502::ASL() {
 // BCC - Branch if Carry Clear
 // If the carry flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BCC() {
-    fetch();
-
     if (!get_flag(CARRY)) {
         cycles++;
 
@@ -420,8 +417,6 @@ uint8_t MOS6502::BCC() {
 // BCS - Branch if Carry Set
 // If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BCS() {
-    fetch();
-
     if (get_flag(CARRY)) {
         cycles++;
 
@@ -439,8 +434,6 @@ uint8_t MOS6502::BCS() {
 // BEQ - Branch if Equal
 // If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BEQ() {
-    fetch();
-
     if (get_flag(ZERO)) {
         cycles++;
 
@@ -460,7 +453,6 @@ uint8_t MOS6502::BEQ() {
 // This instructions is used to test if one or more bits are set in a target memory location. The mask pattern in A is ANDed with the value in memory to set or clear the zero flag, but the result is not kept. Bits 7 and 6 of the value from memory are copied into the N and V flags.
 uint8_t MOS6502::BIT() {
     fetch();
-
     uint8_t bit = a & m;
     sflag(ZERO, !(bit & 0x00FF));
     sflag(NEGATIVE, m & (1<<7));
@@ -472,8 +464,6 @@ uint8_t MOS6502::BIT() {
 // BMI - Branch if Minus
 // If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BMI() {
-    fetch();
-
     if (get_flag(NEGATIVE)) {
         cycles++;
 
@@ -491,8 +481,6 @@ uint8_t MOS6502::BMI() {
 // BNE - Branch if Not Equal
 // If the zero flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BNE() {
-    fetch();
-
     if (!get_flag(ZERO)) {
         cycles++;
 
@@ -510,8 +498,6 @@ uint8_t MOS6502::BNE() {
 // BPL - Branch if Positive
 // If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BPL() {
-    fetch();
-
     if (!get_flag(NEGATIVE)) {
         cycles++;
 
@@ -554,8 +540,6 @@ uint8_t MOS6502::BRK() {
 // BVC - Branch if Overflow Clear
 // If the overflow flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BVC() {
-    fetch();
-
     if (!get_flag(OVERFLOW)) {
         cycles++;
 
@@ -573,8 +557,6 @@ uint8_t MOS6502::BVC() {
 // BVS - Branch if Overflow Set
 // If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BVS() {
-    fetch();
-
     if (get_flag(OVERFLOW)) {
         cycles++;
 
@@ -857,9 +839,10 @@ uint8_t MOS6502::PLP() {
 // Move each of the bits in either A or M one place to the left. Bit 0 is filled with the current value of the carry flag whilst the old bit 7 becomes the new carry flag value.
 uint8_t MOS6502::ROL() {
     fetch();
+    uint8_t old_c = get_flag(CARRY);
     sflag(CARRY, m & 128);
 
-    uint8_t result = (m << 1) | get_flag(CARRY);
+    uint8_t result = (m << 1) | old_c;
     
     if (lookup[opcode].addr_mode == &MOS6502::IMP) {
        a = result; 
@@ -899,7 +882,7 @@ uint8_t MOS6502::RTI() {
     sp++;
     psr = read(0x0100 + sp);
     psr &= ~BREAK;
-    psr &= ~UNUSED;
+    psr |= UNUSED;
 
     sp++;
     pc = (uint16_t) read(0x0100 + sp);
