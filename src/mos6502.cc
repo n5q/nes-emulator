@@ -2,7 +2,7 @@
 #include "bus.hh"
 
 MOS6502::MOS6502() {
-    #define INST(name, opcode, addr, cycles) { name, &MOS6502::opcode, &MOS6502::addr, cycles }
+    #define INST(name, opcode, addr, inst_cycles) { name, &MOS6502::opcode, &MOS6502::addr, inst_cycles }
     lookup = {
         // 0x00
         INST("BRK", BRK, IMM, 7),  INST("ORA", ORA, IDX, 6),  INST("???", XXX, IMP, 2),  INST("???", XXX, IMP, 8),
@@ -158,7 +158,7 @@ void MOS6502::clk() {
         uint8_t a = (this->*inst.addr_mode)();
         uint8_t b = (this->*inst.opcode)();
 
-        // additional cycles if needed
+        // additional inst_cycles if needed
         inst_cycles += (a & b);
     }
     cycles++;
@@ -203,7 +203,7 @@ void MOS6502::irq() {
         uint16_t high = read(irq_vector+1);
         pc = (high << 8) | low;    
 
-        cycles = 7;
+        inst_cycles = 7;
     }
 }
 
@@ -227,7 +227,7 @@ void MOS6502::nmi() {
     uint16_t high = read(nmi_vector+1);
     pc = (high << 8) | low;    
 
-    cycles = 7;
+    inst_cycles = 7;
 }
 
 // ADDRESSING MODES
@@ -401,11 +401,11 @@ uint8_t MOS6502::ASL() {
 // If the carry flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BCC() {
     if (!get_flag(CARRY)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -418,11 +418,11 @@ uint8_t MOS6502::BCC() {
 // If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BCS() {
     if (get_flag(CARRY)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -435,11 +435,11 @@ uint8_t MOS6502::BCS() {
 // If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BEQ() {
     if (get_flag(ZERO)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -465,11 +465,11 @@ uint8_t MOS6502::BIT() {
 // If the negative flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BMI() {
     if (get_flag(NEGATIVE)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -482,11 +482,11 @@ uint8_t MOS6502::BMI() {
 // If the zero flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BNE() {
     if (!get_flag(ZERO)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -499,11 +499,11 @@ uint8_t MOS6502::BNE() {
 // If the negative flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BPL() {
     if (!get_flag(NEGATIVE)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -541,11 +541,11 @@ uint8_t MOS6502::BRK() {
 // If the overflow flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BVC() {
     if (!get_flag(OVERFLOW)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;
@@ -558,11 +558,11 @@ uint8_t MOS6502::BVC() {
 // If the overflow flag is set then add the relative displacement to the program counter to cause a branch to a new location.
 uint8_t MOS6502::BVS() {
     if (get_flag(OVERFLOW)) {
-        cycles++;
+        inst_cycles++;
 
         // if we cross into new page then take another cycle
         if ((addr_branch & 0xFF00) != (pc & 0xFF00)) {
-            cycles++;
+            inst_cycles++;
         }
 
         pc = addr_branch;

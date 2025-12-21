@@ -76,7 +76,7 @@ public:
     uint16_t addr = 0x0000;
     uint16_t addr_branch = 0x0000;
     int8_t disp = 0x00; // displacement for branches
-    uint8_t cycles = 0;
+    uint32_t cycles = 0;
     uint8_t inst_cycles = 0;
 
     void fetch();
