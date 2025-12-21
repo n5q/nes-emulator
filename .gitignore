@@ -32,3 +32,5 @@
 *.app
 
 bin/*
+compile_commands.json
+.cache/clangd/*
