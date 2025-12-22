@@ -17,6 +17,10 @@ OBJ := $(SRC:$(SRC_DIR)/%.cpp=$(BIN_DIR)/%.o)
 # Default rule
 all: $(TARGET)
 
+# Ensure bin directory exists
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
 # Link object files to create binary
 $(TARGET): $(OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^
@@ -24,10 +28,6 @@ $(TARGET): $(OBJ)
 # Compile source files into object files
 $(BIN_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Ensure bin directory exists
-$(BIN_DIR):
-	mkdir -p $(BIN_DIR)
 
 # Clean build artifacts
 clean:

@@ -4,7 +4,8 @@
 #include <cstdint>
 #include <array>
 
-#include "mos6502.hh" 
+#include "mos6502.hh"
+#include "2C02.hh"
 
 class Bus {
 public:
@@ -12,11 +13,12 @@ public:
   ~Bus();
 
   // devices on bus
-  MOS6502 cpu;
-  std::array<uint8_t, 65536> mem; // 64kb ram
+  CPU cpu;
+  std::array<uint8_t, 2*1024> cpu_mem; // 2kb ram
+  void cpu_write(uint16_t addr, uint8_t data);
+  uint8_t cpu_read(uint16_t addr);
 
-  void write(uint16_t addr, uint8_t data);
-  uint8_t read(uint16_t addr);
+  PPU ppu;
 };
 
 #endif
