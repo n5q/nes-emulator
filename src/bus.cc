@@ -12,15 +12,45 @@ Bus::~Bus() {
 }
 
 void Bus::cpu_write(uint16_t addr, uint8_t data) {
-  if (addr >= 0x0000 && addr <= 0xFFFF) {
-    this->cpu_mem[addr] = data;
+  // cart gets highest priority for all r/w
+  if (cart->cpu_write(addr, data)) {
+    // dont do anything
+  }
+
+  else if (addr >= 0x0000 && addr <= 0x1FFF) {
+    data = this->cpu_mem[addr & 0x07FF];
+  }
+  else if (addr >= 0x2000 && addr <= 0x3FFF) {
+    ppu.cpu_write(addr & 0x0007, data);
   }
 }
 
-uint8_t Bus::cpu_read(uint16_t addr) {
+uint8_t Bus::cpu_read(uint16_t addr, bool readonly) {
+  uint8_t data = 0x00;
 
-  if (addr >= 0x0000 && addr <= 0xFFFF) {
-    return this->cpu_mem[addr];
+  if (cart->cpu_read(addr, data)) {
+    // dont do anything
   }
-  return 0x00;
+  
+  // 8kb range of adresssed ram
+  else if (addr >= 0x0000 && addr <= 0x1FFF) {
+    data = this->cpu_mem[addr & 0x07FF];
+  }
+  else if (addr >= 0x2000 && addr <= 0x3FFF) {
+    ppu.cpu_read(addr & 0x0007, readonly);
+  }
+  return data;
+}
+
+void Bus::insert_cartridge(const std::shared_ptr<Cartridge>& cartr) {
+  this->cart = cartr;
+  this->ppu.connect_cartridge(cartr);
+}
+
+void Bus::reset() {
+  this->cpu.reset();
+  this->sys_clocks = 0;
+}
+void Bus::clk() {
+  // this->sys_clocks++;
 }

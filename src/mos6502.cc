@@ -116,7 +116,7 @@ void CPU::write(uint16_t addr, uint8_t data) {
 
 uint8_t CPU::read(uint16_t addr) {
   if (addr >= 0x0000 && addr <= 0xFFFF) {
-    return bus->cpu_read(addr);
+    return bus->cpu_read(addr, false);
   }
   return 0x00;
 }

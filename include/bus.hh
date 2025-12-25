@@ -3,7 +3,9 @@
 
 #include <cstdint>
 #include <array>
+#include <memory>
 
+#include "cartridge.hh"
 #include "mos6502.hh"
 #include "2C02.hh"
 
@@ -16,9 +18,20 @@ public:
   CPU cpu;
   std::array<uint8_t, 2*1024> cpu_mem; // 2kb ram
   void cpu_write(uint16_t addr, uint8_t data);
-  uint8_t cpu_read(uint16_t addr);
+  uint8_t cpu_read(uint16_t addr, bool readonly);
 
   PPU ppu;
+
+  std::shared_ptr<Cartridge> cart;
+
+  // interface
+  void insert_cartridge(const std::shared_ptr<Cartridge>& cart);
+  void reset();
+  void clk();
+
+
+private:
+  uint32_t sys_clocks = 0;
 };
 
 #endif
