@@ -19,6 +19,13 @@ public:
   uint8_t banks_PRG;
   uint8_t banks_CHR;
 
+  enum Mirror {
+    HORIZONTAL,
+    VERTICAL,
+    ONESCREEN_LO,
+    ONESCREEN_HI,
+  } mirror = HORIZONTAL;
+  
   std::shared_ptr<Mapper_Template> mapper; 
   
   // main bus
