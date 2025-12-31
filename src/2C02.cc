@@ -43,7 +43,8 @@ void PPU::cpu_write(uint16_t addr, uint8_t data) {
   switch (addr) {
     case 0x0000: // PPUCTRL
       ctrl = data;
-      this->vram_addr_tmp = (this->vram_addr_tmp & 0xF3FF) | ((data & 0x03) << 10);
+      // update NT bits 10,11 in t
+      vram_addr_tmp = (vram_addr_tmp & 0xF3FF) | ((uint16_t)(data & 0x03) << 10);
 
       // if nmi and in vblank, trigger nmi
       if ((ctrl & 0x80) && (status & 0x80)) {
@@ -51,7 +52,10 @@ void PPU::cpu_write(uint16_t addr, uint8_t data) {
       }
       break;
       
-    case 0x0001: break; // PPUMASK
+    case 0x0001: // PPUMASK
+      mask = data;
+      break;
+      
     case 0x0002: // PPUSTATUS
       // only care about top 3 bits, lower 5 are open bus
       data = (status & 0xE0) | (ppu_data_buf & 0x1F);
@@ -62,7 +66,23 @@ void PPU::cpu_write(uint16_t addr, uint8_t data) {
       
     case 0x0003: break; // OAMADDR
     case 0x0004: break; // OAMDATA
-    case 0x0005: break; // PPUSCROLL
+    case 0x0005: // PPUSCROLL
+      if (!address_latch) {
+        // first write: x scroll
+        fine_x = data & 0x07;
+        // update coarse x in t register
+        vram_addr_tmp = (vram_addr_tmp & 0xFFE0) | (data >> 3);
+        address_latch = 1;
+      }
+      // second writeL y scroll
+      else {
+        // update fine and coarse y in t
+        vram_addr_tmp = (vram_addr_tmp & 0x8FFF) | ((uint16_t)(data & 0x07) << 12);
+        vram_addr_tmp = (vram_addr_tmp & 0xFC1F) | ((uint16_t)(data >> 3) << 5);
+        address_latch = 0;
+      }
+      break;
+      
     case 0x0006: // PPUADDR
       // write high byte first then low byte
       if (!this->address_latch) {
@@ -269,6 +289,45 @@ void PPU::clk() {
     if ((cycle >= 2 && cycle < 258) || (cycle >= 321 && cycle < 338)) {
       this->update_shifters();
 
+      // -- PIXEL OUTPUT --
+      uint8_t pixel = 0x00;   // pixel value (0,1,2,3)
+      uint8_t palette = 0x00; // palette index (0,1,2,3)
+
+      // only generate pixels during visible window
+      if (mask & 0x18) {
+        // pixel to draw is at msb shifted by fine x
+        uint16_t mux = 0x8000 >> fine_x;
+        uint8_t p0 = (bg_shifter_pattern_lo & mux) > 0;
+        uint8_t p1 = (bg_shifter_pattern_hi & mux) > 0;
+        pixel = (p1 << 1) | p0;
+
+        uint8_t pal0 = (bg_shifter_attrib_lo & mux) > 0;
+        uint8_t pal1 = (bg_shifter_attrib_hi & mux) > 0;
+        palette = (pal1 << 1) | pal0;
+      }
+
+      // calculate final colour
+      // index = 0x3F00 + (palette * 4) + pixel
+      uint32_t colour = 0;
+      // visible screen area
+      if (cycle < 257 && scanline >= 0) {
+        uint16_t palette_addr = 0x3F00 + (palette * 4) + pixel;
+        // if pixel is 0, always points to 0x3F00 (bg colour)
+        if (!(pixel & 0x03)) {
+          palette_addr = 0x3F00;
+        }
+        uint8_t colour_index = ppu_read(palette_addr) & 0x3F;
+
+        Pixel colour = palette_lut[colour_index];
+        this->screen_buffer[(scanline * 256) + (cycle - 1)] = (colour.r << 24)
+                                                            | (colour.g << 16)
+                                                            | (colour.b << 8)
+                                                            | 255;
+      }
+
+      
+
+
       // Cycle logic operates on steps of 8 pixels
       // 1. fetch NT byte (title id)
       // 2. fetch AT byte (attributes)
@@ -287,7 +346,7 @@ void PPU::clk() {
           // fetch next title attr from AT
           // logical shortcut - not exact ppu behaviour
           // TODO: improve?
-          bg_next_tile_id = ppu_read(0x23C0 | (vram_addr & 0x0C00)
+          bg_next_tile_attrib = ppu_read(0x23C0 | (vram_addr & 0x0C00)
                                             | ((vram_addr >> 4) & 0x38)
                                             | ((vram_addr >> 2) & 0x07));
           // shift to get the quadrant we need
