@@ -43,6 +43,37 @@ private:
 
   int16_t scanline = 0; // 0 to 261
   int16_t cycle = 0;    // 0 to 340
+
+
+  // BACKGROUND RENDERING
+
+  // 1. background shift registers
+  // pattern table for two tiles
+  // lower = current tile being drawn
+  uint16_t bg_shifter_pattern_lo = 0x0000;
+  // high = next tile to be drawn
+  uint16_t bg_shifter_pattern_hi = 0x0000;
+
+  // 2. attribute shift registers
+  // palette indeces for current and next tile
+  // shifted so we know which palette to use for every pixel
+  uint16_t bg_shifter_attrib_lo = 0x0000;
+  uint16_t bg_shifter_attrib_hi = 0x0000;
+
+  // 3. internal latches (next tile data)
+  // during cycle, fetch 4 bytes of data for next tile
+  uint8_t bg_next_tile_id = 0x00;
+  uint8_t bg_next_tile_attrib = 0x00;
+  uint8_t bg_next_tile_lsb = 0x00;
+  uint8_t bg_next_tile_msb = 0x00;
+
+  // bg rendering functions
+  void load_bg_shifters();
+  void update_shifters();
+  void inc_scroll_x();
+  void inc_scroll_y();
+  void transfer_addr_x();
+  void transfer_addr_y();
 };
 
 #endif
