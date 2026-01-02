@@ -1,5 +1,6 @@
 #include "2C02.hh"
 #include "cartridge.hh"
+#include <cstring>
 #include <memory>
 
 PPU::PPU() {
@@ -14,13 +15,18 @@ PPU::~PPU() {
 uint8_t PPU::cpu_read(uint16_t addr, bool readonly) {
   uint8_t data = 0x00;
 
-  // https://www.nesdev.org/wiki/PPU_programmer_reference#Summary
+  // https://www.nesdev.org/wiki/PPU_registers
   switch (addr) {
     case 0x0000: break; // PPUCTRL
     case 0x0001: break; // PPUMASK
     case 0x0002: break; // PPUSTATUS
     case 0x0003: break; // OAMADDR
-    case 0x0004: break; // OAMDATA
+    case 0x0004:  // OAMDATA
+      // this reg should not be written to in most cases b/c oam should
+      // be made only during vblank - use oamdma instaead
+      data = oam_p[oam_addr];
+      break;
+      
     case 0x0005: break; // PPUSCROLL
     case 0x0006: break; // PPUADDR
     case 0x0007:  // PPUDATA
@@ -39,7 +45,7 @@ uint8_t PPU::cpu_read(uint16_t addr, bool readonly) {
 }
 void PPU::cpu_write(uint16_t addr, uint8_t data) {
   
-  // https://www.nesdev.org/wiki/PPU_programmer_reference#Summary
+  // https://www.nesdev.org/wiki/PPU_registers
   switch (addr) {
     case 0x0000: // PPUCTRL
       ctrl = data;
@@ -64,8 +70,17 @@ void PPU::cpu_write(uint16_t addr, uint8_t data) {
       address_latch = 0;
       break;
       
-    case 0x0003: break; // OAMADDR
-    case 0x0004: break; // OAMDATA
+    case 0x0003: // OAMADDR
+      oam_addr = data;
+      break;
+      
+    case 0x0004: // OAMDATA
+      oam_p[oam_addr] = data;
+      // inc after every write
+      oam_addr++;
+      break;
+      
+
     case 0x0005: // PPUSCROLL
       if (!address_latch) {
         // first write: x scroll
@@ -289,26 +304,109 @@ void PPU::clk() {
     if ((cycle >= 2 && cycle < 258) || (cycle >= 321 && cycle < 338)) {
       this->update_shifters();
 
-      // -- PIXEL OUTPUT --
-      uint8_t pixel = 0x00;   // pixel value (0,1,2,3)
-      uint8_t palette = 0x00; // palette index (0,1,2,3)
-
+      // -- PIXEL OUTPUT & MUX --
+      // 1. bg pixel
+      uint8_t bg_pixel = 0x00;   // pixel value (0,1,2,3)
+      uint8_t bg_palette = 0x00; // palette index (0,1,2,3)
+     
       // only generate pixels during visible window
-      if (mask & 0x18) {
+      if (mask & 0x08) {
         // pixel to draw is at msb shifted by fine x
         uint16_t mux = 0x8000 >> fine_x;
         uint8_t p0 = (bg_shifter_pattern_lo & mux) > 0;
         uint8_t p1 = (bg_shifter_pattern_hi & mux) > 0;
-        pixel = (p1 << 1) | p0;
+        bg_pixel = (p1 << 1) | p0;
 
         uint8_t pal0 = (bg_shifter_attrib_lo & mux) > 0;
         uint8_t pal1 = (bg_shifter_attrib_hi & mux) > 0;
-        palette = (pal1 << 1) | pal0;
+        bg_palette = (pal1 << 1) | pal0;
       }
 
+      // 2. fg (sprite) pixel
+      uint8_t fg_pixel = 0x00;
+      uint8_t fg_palette = 0x00;
+      uint8_t fg_priority = 0x00;
+
+      if (mask & 0x10) {
+        rendering_zerohit = false;
+        // check sprite enable (bit 4)
+        for (uint8_t i = 0; i < n_sprites; i++) {
+          if (scanline_sprites[i].x == 0) {
+            // read msb of sprite shifters
+            uint8_t pixel_lo = (sprite_shifter_lo[i] & 0x80) > 0;
+            uint8_t pixel_hi = (sprite_shifter_hi[i] & 0x80) > 0;
+            fg_pixel = (pixel_hi << 1) | pixel_lo;
+            // sprite palettes + 4
+            fg_palette = (scanline_sprites[i].attribute & 0x03) + 0x04;
+            // 0 == front
+            fg_priority = (scanline_sprites[i].attribute & 0x20) == 0;
+            // found topmost
+            if (fg_pixel) {
+              // sprite zero?
+              if (!i && possible_zerohit) {
+                rendering_zerohit = true;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. priority mux (combing fg and bg)
+      
+      uint8_t pixel = 0x00;
+      uint8_t palette = 0x00;
+
+      if (!fg_pixel && !bg_pixel) {
+        pixel = 0x00;
+        palette = 0x00;
+      }
+
+      else if (fg_pixel && !bg_pixel) {
+        pixel = fg_pixel;
+        palette = fg_palette;
+      }
+
+      else if (!fg_pixel && bg_pixel) {
+        pixel = bg_pixel;
+        palette = bg_palette;
+      }
+
+      else if (fg_pixel && bg_pixel){
+        if (fg_priority) {
+          pixel = fg_pixel;
+          palette = fg_palette;
+        }
+        else {
+          pixel = bg_pixel;
+          palette = bg_palette;
+        }
+        // zero hit detection
+        if (possible_zerohit && rendering_zerohit) {
+          // mask render foreground and render background (bits 4 and 3)
+          if ((mask & 0x08) && (mask & 0x10)) {
+            // left edge has special flags to fix inconsistencies when scrolling
+            // mask bits 1 and 2
+            if ( !((mask & 0x02) | (mask & 0x04)) ) {
+              if (cycle >= 9 && cycle < 258) {
+                // set the sprite zero hit flag
+                status |= 0x40;
+              }
+            }
+            else {
+              if (cycle >= 1 && cycle < 258) {
+                // set the sprite zero hit flag
+                status |= 0x40;
+              }
+            }
+          }
+        }
+      }
+
+              
+      // 4. output to screen buf
       // calculate final colour
       // index = 0x3F00 + (palette * 4) + pixel
-      uint32_t colour = 0;
       // visible screen area
       if (cycle < 257 && scanline >= 0) {
         uint16_t palette_addr = 0x3F00 + (palette * 4) + pixel;
@@ -317,12 +415,25 @@ void PPU::clk() {
           palette_addr = 0x3F00;
         }
         uint8_t colour_index = ppu_read(palette_addr) & 0x3F;
-
         Pixel colour = palette_lut[colour_index];
+        
         this->screen_buffer[(scanline * 256) + (cycle - 1)] = (colour.r << 24)
                                                             | (colour.g << 16)
                                                             | (colour.b << 8)
                                                             | 255;
+      }
+
+      // 5. update sprite shifters (dec x or shift)
+      if (mask & 0x10) {
+        for (int i = 0; i < n_sprites; i++) {
+          if (scanline_sprites[i].x > 0) {
+            scanline_sprites[i].x--;
+          }
+          else {
+            sprite_shifter_lo[i] <<= 1;
+            sprite_shifter_hi[i] <<= 1;
+          }
+        }
       }
 
       
@@ -392,7 +503,96 @@ void PPU::clk() {
     if (cycle == 257) {
       load_bg_shifters();
       transfer_addr_x();
+
+      // SPRITE EVALUATION:
+      // 1. clear list of visible sprites
+      n_sprites = 0;
+      possible_zerohit = false;
+      for (int i = 0; i < 8; i++) {
+        // 0xFF means no sprite
+        scanline_sprites[i].title_id = 0xFF;
+        scanline_sprites[i].x = 0xFF;
+        scanline_sprites[i].y = 0xFF;
+        scanline_sprites[i].attribute = 0xFF;
+      }
+      clear_sprite_shifters();
+
+      // 2. iterate through OAM to find sporites on this scanline
+      uint8_t oam_entries = 0;
+      while (oam_entries < 64 && n_sprites < 8) {
+        // diff between current scanline and sprite y
+        int16_t diff = ((int16_t) scanline - (int16_t) oam[oam_entries].y);
+        // check if sprite is visible (diff between 0-8 or 0-16 for 8x16 mode)
+        int16_t spr_height = (ctrl & 0x20) ? 16 : 8;
+        if (diff >= 0 && diff < spr_height) {
+          // sprite visible - copy to secondary oam
+          if (n_sprites < 8) {
+            // zero hit
+            // TODO: flag check logic
+            if (oam_entries == 0) {
+              possible_zerohit = true;
+            }
+            memcpy(&scanline_sprites[n_sprites], &oam[oam_entries], sizeof(OAM));
+            n_sprites++;
+          }
+        }
+        oam_entries++;
+      }
+
+      // 3. set sprite overflow flag (status but 5)
+      // real implementation is bugged but here the bug is ignored for simplicity
+      // no games make use of the bug
+      // https://www.nesdev.org/wiki/PPU_sprite_evaluation#Sprite_overflow_bug
+      status &= ~0x20;
+      if (n_sprites >= 8) {
+        status |= 0x20;
+      }
     }
+    
+    // sprite shifter loading
+    if (cycle == 340) {
+      // prep shifters for next scanline
+      for (uint8_t i = 0; i < n_sprites; i++) {
+        uint8_t spr_pattern_bits_lo;
+        uint8_t spr_pattern_bits_hi;
+        uint16_t spr_pattern_addr;
+
+        // determine address of sprite pattern
+        // 8x8 mode
+        if (!(ctrl & 0x20)) {
+          // bit 3 tells which pattern table
+          uint16_t table_addr = (ctrl & 0x08) ? 0x1000 : 0x0000;
+          uint16_t cell_addr = (uint16_t) scanline_sprites[i].title_id << 4;
+          // row within title ( handling vflip)
+          uint16_t row_addr = (scanline - scanline_sprites[i].y);
+          if (scanline_sprites[i].attribute & 0x80) {
+            row_addr = 7 - row_addr;
+          }
+          spr_pattern_addr = table_addr + cell_addr + row_addr;
+        }
+
+        // TODO: 8x16 mode
+        else {
+          spr_pattern_addr = 0;
+        }
+
+        // fetch data
+        spr_pattern_bits_lo = ppu_read(spr_pattern_addr);
+        spr_pattern_bits_hi = ppu_read(spr_pattern_addr + 8);
+
+        // hflip (reverse byte)
+        if (scanline_sprites[i].attribute & 0x40) {
+          spr_pattern_bits_lo = reverse_bits(spr_pattern_bits_lo);
+          spr_pattern_bits_hi = reverse_bits(spr_pattern_bits_hi);
+        }
+
+        // load shifters
+        sprite_shifter_lo[i] = spr_pattern_bits_lo;
+        sprite_shifter_hi[i] = spr_pattern_bits_hi;
+      }
+    }
+
+    
 
     // pre render line: reset y at end of pre render (dot 280-304)
     if (scanline == -1 && cycle >= 280 && cycle < 305) {
@@ -420,7 +620,7 @@ void PPU::clk() {
 }
 
 
-// BACKGROUND RENDERING
+// -- BACKGROUND RENDERING --
 
 // transfers the latched next tile into the upper end of the 16 bit shifters
 void PPU::load_bg_shifters() {
@@ -498,3 +698,21 @@ void PPU::transfer_addr_y() {
   }
 }
 
+
+// -- FOREGROUND (SPRITE) RENDERING --
+
+void PPU::clear_sprite_shifters() {
+  for (int i = 0; i < 8; i++) {
+    sprite_shifter_lo[i] = 0;
+    sprite_shifter_hi[i] = 0;
+  }
+}
+
+
+// https://stackoverflow.com/questions/2602823/in-c-c-whats-the-simplest-way-to-reverse-the-order-of-bits-in-a-byte
+inline uint8_t PPU::reverse_bits(uint8_t b) {
+  b = ((b & 0xF0) >> 4) | ((b & 0x0F) << 4);
+  b = ((b & 0xCC) >> 2) | ((b & 0x33) << 2);
+  b = ((b & 0xAA) >> 1) | ((b & 0x55) << 1);
+  return b;
+}

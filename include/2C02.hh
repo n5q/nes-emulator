@@ -21,6 +21,7 @@ public:
   void connect_cartridge(const std::shared_ptr<Cartridge> cart);
   void clk();
 
+  // signal the cpu that a vblank nmi has occured
   bool nmi = false;
 
   // 256x240 screen buffer (RGBA)
@@ -32,6 +33,7 @@ public:
     uint8_t g;
     uint8_t b;
   };
+
   // generated with https://github.com/Gumball2415/pally
   Pixel palette_lut[0x3F + 1] = {
     {0x62, 0x62, 0x62},
@@ -102,11 +104,26 @@ public:
     {0x00, 0x00, 0x00},
     {0x00, 0x00, 0x00},
   };
+
+
+  // OAM (object attribute memory) (aka sprites)
+  // https://www.nesdev.org/wiki/PPU_OAM
+  struct OAM {
+    // y pos
+    uint8_t y;
+    uint8_t title_id;
+    // flip, palette, priority
+    uint8_t attribute;
+    // x pos
+    uint8_t x;
+  } oam[64];
+
+  uint8_t* oam_p = (uint8_t*) oam;
   
 private:
   std::shared_ptr<Cartridge> cart;
   
-  // 2kb vram (2 nametables)
+  // 2kb vram (2 nametables) (background)
   uint8_t nametable[2][1024];
   
   uint8_t palette_ram[32];
@@ -121,6 +138,7 @@ private:
   uint8_t mask = 0x00;    // $2001 PPUMASK
   uint8_t status = 0x00;  // $2002 PPUSTATUS
 
+  // nes screen is 256x240 but the ppu timing covers 361x262
   int16_t scanline = 0; // 0 to 261
   int16_t cycle = 0;    // 0 to 340
 
@@ -154,6 +172,27 @@ private:
   void inc_scroll_y();
   void transfer_addr_x();
   void transfer_addr_y();
+
+
+  // -- FOREGROUND (SPRITE) RENDERING --
+
+  // internal oam register
+  uint8_t oam_addr = 0x00;
+
+  // sprites on current scanline (max 8)
+  OAM scanline_sprites[8];
+  uint8_t n_sprites;
+
+  // sprite shift registers (8 units, one for each potential visible sprite)
+  uint8_t sprite_shifter_lo[8];
+  uint8_t sprite_shifter_hi[8];
+
+  bool possible_zerohit = false;
+  bool rendering_zerohit = false;
+      
+  void clear_sprite_shifters();
+  inline uint8_t reverse_bits(uint8_t b);
+  
 };
 
 #endif
