@@ -33,6 +33,13 @@ Cartridge::Cartridge(const std::string &romfile) {
 
     mapper_id = ((header.flags6 & 0xF0) >> 4) | (header.flags7 & 0xF0);
 
+    if (header.flags6 & 0x01) {
+      mirror = VERTICAL;
+    }
+    else {
+      mirror = HORIZONTAL;
+    }
+
     uint8_t romtype = 1;
     switch (romtype) {
       case 0:
