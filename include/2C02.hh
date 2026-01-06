@@ -120,6 +120,9 @@ public:
 
   uint8_t* oam_p = (uint8_t*) oam;
   
+  // internal oam register
+  uint8_t oam_addr = 0x00;
+
 private:
   std::shared_ptr<Cartridge> cart;
   
@@ -176,8 +179,6 @@ private:
 
   // -- FOREGROUND (SPRITE) RENDERING --
 
-  // internal oam register
-  uint8_t oam_addr = 0x00;
 
   // sprites on current scanline (max 8)
   OAM scanline_sprites[8];

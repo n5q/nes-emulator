@@ -5,6 +5,7 @@
 #include <array>
 #include <memory>
 
+#include "RP2A03.hh"
 #include "cartridge.hh"
 #include "mos6502.hh"
 #include "2C02.hh"
@@ -21,6 +22,8 @@ public:
   uint8_t cpu_read(uint16_t addr, bool readonly);
 
   PPU ppu;
+
+  std::shared_ptr<RP2A03> rp;
 
   std::shared_ptr<Cartridge> cart;
 

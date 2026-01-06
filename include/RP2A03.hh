@@ -12,8 +12,8 @@ public:
   RP2A03();
   ~RP2A03();
 
-  void connect_bus(std::shared_ptr<Bus> bus);
-  void connect_ppu(std::shared_ptr<PPU> ppu);
+  void connect_bus(std::shared_ptr<Bus> b);
+  void connect_ppu(std::shared_ptr<PPU> p);
 
   // 2A03 interprets writes to $4000 - $4017
   void cpu_write(uint16_t addr, uint8_t data);
@@ -28,6 +28,12 @@ public:
   uint8_t dma_page = 0x00;
   uint8_t dma_addr = 0x00;
   uint8_t dma_data = 0x00;
+
+  // controller states
+  // current state of buttons (snapshot)
+  uint8_t controller[2];
+  // shift register for serial reading
+  uint8_t controller_state[2];
 
 private:
   std::shared_ptr<Bus> bus;

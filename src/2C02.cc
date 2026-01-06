@@ -31,14 +31,20 @@ uint8_t PPU::cpu_read(uint16_t addr, bool readonly) {
     case 0x0006: break; // PPUADDR
     case 0x0007:  // PPUDATA
       data = this->ppu_data_buf;
-      this->ppu_data_buf = this->ppu_read(this->vram_addr);
-
-      // if addr in range, no delay
-      // data returned immediately and buf replaced with mirrored NT
-      if (this->vram_addr >= 0x3F00) {
-        data = this->ppu_data_buf;
+      
+      if (!readonly) {
+        this->ppu_data_buf = this->ppu_read(this->vram_addr);
+        // if addr in range, no delay
+        // data returned immediately and buf replaced with mirrored NT
+        if (this->vram_addr >= 0x3F00) {
+          data = this->ppu_data_buf;
+        }
+        this->vram_addr += (this->ctrl & 0x04) ? 32 : 1;
       }
-      this->vram_addr += (this->ctrl & 0x04) ? 32 : 1;
+      else {
+        
+      }
+      break;
   }
   
   return data;
