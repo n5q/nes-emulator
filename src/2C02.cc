@@ -510,7 +510,7 @@ void PPU::clk() {
       possible_zerohit = false;
       for (int i = 0; i < 8; i++) {
         // 0xFF means no sprite
-        scanline_sprites[i].title_id = 0xFF;
+        scanline_sprites[i].tile_id = 0xFF;
         scanline_sprites[i].x = 0xFF;
         scanline_sprites[i].y = 0xFF;
         scanline_sprites[i].attribute = 0xFF;
@@ -562,7 +562,7 @@ void PPU::clk() {
         if (!(ctrl & 0x20)) {
           // bit 3 tells which pattern table
           uint16_t table_addr = (ctrl & 0x08) ? 0x1000 : 0x0000;
-          uint16_t cell_addr = (uint16_t) scanline_sprites[i].title_id << 4;
+          uint16_t cell_addr = (uint16_t) scanline_sprites[i].tile_id << 4;
           // row within title ( handling vflip)
           uint16_t row_addr = (scanline - scanline_sprites[i].y);
           if (scanline_sprites[i].attribute & 0x80) {

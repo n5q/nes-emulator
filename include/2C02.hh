@@ -111,7 +111,7 @@ public:
   struct OAM {
     // y pos
     uint8_t y;
-    uint8_t title_id;
+    uint8_t tile_id;
     // flip, palette, priority
     uint8_t attribute;
     // x pos
