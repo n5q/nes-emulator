@@ -10,7 +10,7 @@ Bus::Bus() {
 
   // RP2A03
   this->rp = std::make_shared<RP2A03>();
-  this->rp->connect_bus(std::shared_ptr<Bus>(this));
+  this->rp->connect_bus(this);
   // i have no clue
   this->rp->connect_ppu(std::shared_ptr<PPU>(&this->ppu, [](PPU*){}));
 } 
@@ -57,8 +57,8 @@ uint8_t Bus::cpu_read(uint16_t addr, bool readonly) {
 
   // 4. apu i/o registers
   else if (addr >= 0x4000 && addr <= 0x4017) {
-    data = rp->cpu_read(addr);
-  }
+    data = rp->cpu_read(addr, readonly);
+}
 
   return data;
 }
@@ -75,6 +75,11 @@ void Bus::reset() {
 void Bus::clk() {
   // ppu runs 3x faster than the cpu
   ppu.clk();
+
+  if (ppu.nmi) {
+    ppu.nmi = false;
+    cpu.nmi();
+  }
 
   // every 3 ppu cycles
   if (!(sys_clocks % 3)) {

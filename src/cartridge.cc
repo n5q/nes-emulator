@@ -51,9 +51,17 @@ Cartridge::Cartridge(const std::string &romfile) {
         ifs.read( (char*) mem_PRG.data(), mem_PRG.size());
 
         banks_CHR = header.CHR_ROM_size;
-        mem_CHR.resize(banks_CHR*8*1024);
-        ifs.read( (char*) mem_CHR.data(), mem_CHR.size());
-
+        if (banks_CHR == 0) {
+          // create new 8kb ram for chr
+          mem_CHR.resize(8*1024);
+        }
+        else {
+          mem_CHR.resize(banks_CHR*8*1024);
+        }
+        if (banks_CHR > 0) {
+          ifs.read( (char*) mem_CHR.data(), mem_CHR.size());
+        }
+        
       case 2:
         break;
     }
@@ -64,6 +72,7 @@ Cartridge::Cartridge(const std::string &romfile) {
         break;
     }
 
+    valid = true;
     ifs.close();
   }
 }

@@ -146,7 +146,10 @@ void CPU::sflag(FLAG f, bool b) {
 }
 
 void CPU::fetch() {
-  m = read(addr);
+  if (!(lookup[opcode].addr_mode == &CPU::IMP)) {
+    m = read(addr);
+  }
+  // return m;
 }
 
 void CPU::clk() {
@@ -191,12 +194,13 @@ void CPU::irq() {
     write(0x0100+sp, pc & 0x00FF);
     sp--;
 
+    write(0x0100+sp, psr | UNUSED); 
+    sp--;
+
     // bits set on irq and psr pushed to stack
     sflag(BREAK, 0);
     sflag(UNUSED, 1);
     sflag(INTERRUPT, 1);
-    write(0x0100+sp, psr);
-    sp--;
 
     uint16_t irq_vector = 0xFFFE;
     uint16_t low = read(irq_vector);
@@ -215,12 +219,13 @@ void CPU::nmi() {
   write(0x0100+sp, pc & 0x00FF);
   sp--;
 
+  write(0x0100+sp, psr | UNUSED); 
+  sp--;
+
   // bits set on nmi and psr pushed to stack
   sflag(BREAK, 0);
   sflag(UNUSED, 1);
   sflag(INTERRUPT, 1);
-  write(0x0100+sp, psr);
-  sp--;
 
   uint16_t nmi_vector = 0xFFFA;
   uint16_t low = read(nmi_vector);

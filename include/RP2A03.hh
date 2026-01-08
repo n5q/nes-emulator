@@ -12,12 +12,12 @@ public:
   RP2A03();
   ~RP2A03();
 
-  void connect_bus(std::shared_ptr<Bus> b);
+  void connect_bus(Bus* b);
   void connect_ppu(std::shared_ptr<PPU> p);
 
   // 2A03 interprets writes to $4000 - $4017
   void cpu_write(uint16_t addr, uint8_t data);
-  uint8_t cpu_read(uint16_t addr);
+  uint8_t cpu_read(uint16_t addr, bool readonly = false);
 
   void clk();
 
@@ -34,9 +34,10 @@ public:
   uint8_t controller[2];
   // shift register for serial reading
   uint8_t controller_state[2];
+  uint8_t controller_strobe = 0x00;
 
 private:
-  std::shared_ptr<Bus> bus;
+  Bus* bus = nullptr;
   std::shared_ptr<PPU> ppu;
 
   // TODO: APU

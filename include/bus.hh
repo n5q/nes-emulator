@@ -32,8 +32,6 @@ public:
   void reset();
   void clk();
 
-
-private:
   uint32_t sys_clocks = 0;
 };
 

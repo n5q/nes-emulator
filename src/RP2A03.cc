@@ -10,7 +10,7 @@ RP2A03::~RP2A03() {
   
 }
 
-void RP2A03::connect_bus(std::shared_ptr<Bus> b) {
+void RP2A03::connect_bus(Bus* b) {
   this->bus = b;
 }
 
@@ -30,27 +30,42 @@ void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
     this->dma_transfer = true;
     // first cycle is a dummy/alignment cycle
     this->dma_alignment = true;
+    for (int i = 0; i < 256; i++) {
+      uint8_t val = bus->cpu_read((this->dma_page << 8) | i, false);
+      ppu->oam_p[i] = val;
+    }
   }
 
   // controller strobe
   // if we write to $4016 we capture input
   if (addr == 0x4016) {
-    // data lsb is 1 -> strobing (continually reloading state)
-    // state is latched on falling edge
-    // specific behaviour depends on bit 0
-    if (data & 1) {
+    // detect falling edge to latch controller state
+    bool old_strobe = controller_strobe & 0x01;
+    bool new_strobe = data & 0x01;
+    
+    // latch on falling edge 
+    if (old_strobe && !new_strobe) {
       controller_state[0] = controller[0];
     }
+    
+    controller_strobe = data;
   }
 }
 
-uint8_t RP2A03::cpu_read(uint16_t addr) {
+uint8_t RP2A03::cpu_read(uint16_t addr, bool readonly) {
   uint8_t data = 0x00;
 
   // read controller 1 ($4016)
   if (addr == 0x4016) {
-    // read msb
-    data = (controller_state[0] & 0x80) > 0;
+    // If readonly, dontt modify state (for debugging)
+    if (readonly) {
+      data = (controller_state[0] & 0x80) ? 0x01 : 0x00;
+      return data;
+    }
+    
+    // bit 0 = current MSB of controller state
+    data = (controller_state[0] & 0x80) ? 0x01 : 0x00;
+    
     // shift register for next button
     controller_state[0] <<= 1;
   }
@@ -58,44 +73,40 @@ uint8_t RP2A03::cpu_read(uint16_t addr) {
   return data;
 }
 
+
 void RP2A03::clk() {
   // if DMA is happening, execute one step of transfer
   if (dma_transfer) {
     // wait for one cycle for synchronization
     if (dma_alignment) {
-      // !TODO: check for odd cpu cycles for +1 wait
-      if (1) {
+      if (bus->sys_clocks % 2 == 0) {
         dma_alignment = false;
       }
     }
     else {
-      // read from cpu bus (read cycle)
-      if (!(dma_addr % 2)) {
+      // dma can happen
+      if (bus->sys_clocks % 2 == 1) {
         // read data from page specified
-        dma_data = bus->cpu_read((dma_page << 8) | dma_addr, false);
+        dma_data = bus->cpu_read((uint16_t)(dma_page << 8) | dma_addr, false);
       }
       // write to PPU OAM (write cycle)
       else {
         // write directly to ppu oam memory
-        ppu->oam_p[ppu->oam_addr] = dma_data;
+        ppu->oam_p[dma_addr] = dma_data;
         // oam addr auto increments on the ppu side when written via registers
         // but since array is written to directly, need to manually increment
-
-        // simulate write to $2004
-        ppu->cpu_write(0x2004, dma_data);
-      }
-      dma_addr++;
-
-      // finished after wrapping around (0x00 -> ... -> 0xFF -> 0x00)
-      if (dma_addr == 0x00) {
-        dma_transfer = false;
-        dma_alignment = true;
+        dma_addr++;
+        // finished after wrapping around (0x00 -> ... -> 0xFF -> 0x00)
+        if (dma_addr == 0x00) {
+          dma_transfer = false;
+          dma_alignment = true;
+        }
       }
     }
   }
 
   else {
-    // TODO : APU
+    // TODO : APU 
   }
   
 }

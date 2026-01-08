@@ -15,6 +15,7 @@ public:
   Cartridge(const std::string &romfile);
   ~Cartridge();
 
+  bool valid = false;
   uint8_t mapper_id;
   uint8_t banks_PRG;
   uint8_t banks_CHR;

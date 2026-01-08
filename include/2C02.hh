@@ -23,6 +23,8 @@ public:
 
   // signal the cpu that a vblank nmi has occured
   bool nmi = false;
+  bool frame_complete = false;
+  
 
   // 256x240 screen buffer (RGBA)
   uint32_t* screen_buffer = new uint32_t[256*240];

@@ -4,7 +4,7 @@
 #include <memory>
 
 PPU::PPU() {
-  
+  this->oam_p = (uint8_t*)this->oam;
 }
 
 PPU::~PPU() {
@@ -19,7 +19,14 @@ uint8_t PPU::cpu_read(uint16_t addr, bool readonly) {
   switch (addr) {
     case 0x0000: break; // PPUCTRL
     case 0x0001: break; // PPUMASK
-    case 0x0002: break; // PPUSTATUS
+    case 0x0002: // PPUSTATUS
+      // only care about top 3 bits, lower 5 are open bus
+      data = (status & 0xE0) | (ppu_data_buf & 0x1F);
+      // reading status clears vblank flag
+      status &= ~0x80;
+      address_latch = 0;
+      break;
+      
     case 0x0003: break; // OAMADDR
     case 0x0004:  // OAMDATA
       // this reg should not be written to in most cases b/c oam should
@@ -69,11 +76,6 @@ void PPU::cpu_write(uint16_t addr, uint8_t data) {
       break;
       
     case 0x0002: // PPUSTATUS
-      // only care about top 3 bits, lower 5 are open bus
-      data = (status & 0xE0) | (ppu_data_buf & 0x1F);
-      // reading status clears vblank flag
-      status &= ~0x80;
-      address_latch = 0;
       break;
       
     case 0x0003: // OAMADDR
@@ -108,6 +110,7 @@ void PPU::cpu_write(uint16_t addr, uint8_t data) {
       // write high byte first then low byte
       if (!this->address_latch) {
         this->vram_addr_tmp = (this->vram_addr_tmp & 0x00FF) | ((uint16_t)(data & 0x3F) << 8);
+        this->address_latch = 1;
       }
       else {
         this->vram_addr_tmp = (this->vram_addr_tmp & 0xFF00) | data;
@@ -299,15 +302,20 @@ void PPU::clk() {
       status &= ~0x80; // clear vblank
       status &= ~0x40; // clear sprite 0
       status &= ~0x20; // clear overflow
+
+      // reset shifters
+      for (int i = 0; i < 8; i++) {
+        sprite_shifter_lo[i] = 0;
+        sprite_shifter_hi[i] = 0;
+      }
+      // bg_shifter_pattern_lo = 0;
+      // bg_shifter_pattern_hi = 0;
+      // bg_shifter_attrib_lo = 0;
+      // bg_shifter_attrib_hi = 0;
     }
-    // reset shifters
-    bg_shifter_pattern_lo = 0;
-    bg_shifter_pattern_hi = 0;
-    bg_shifter_attrib_lo = 0;
-    bg_shifter_attrib_hi = 0;
 
     // cycles 1-256 (visible) and 321-336 (prefetch for next line)
-    if ((cycle >= 2 && cycle < 258) || (cycle >= 321 && cycle < 338)) {
+    if ((cycle >= 1 && cycle < 257) || (cycle >= 321 && cycle < 337)) {
       this->update_shifters();
 
       // -- PIXEL OUTPUT & MUX --
@@ -333,30 +341,27 @@ void PPU::clk() {
       uint8_t fg_palette = 0x00;
       uint8_t fg_priority = 0x00;
 
-      if (mask & 0x10) {
-        rendering_zerohit = false;
-        // check sprite enable (bit 4)
-        for (uint8_t i = 0; i < n_sprites; i++) {
-          if (scanline_sprites[i].x == 0) {
+        if (mask & 0x10) {
+    rendering_zerohit = false;
+    for (uint8_t i = 0; i < n_sprites; i++) {
+        if (scanline_sprites[i].x == 0) {
             // read msb of sprite shifters
             uint8_t pixel_lo = (sprite_shifter_lo[i] & 0x80) > 0;
             uint8_t pixel_hi = (sprite_shifter_hi[i] & 0x80) > 0;
             fg_pixel = (pixel_hi << 1) | pixel_lo;
-            // sprite palettes + 4
-            fg_palette = (scanline_sprites[i].attribute & 0x03) + 0x04;
-            // 0 == front
-            fg_priority = (scanline_sprites[i].attribute & 0x20) == 0;
-            // found topmost
+            
             if (fg_pixel) {
-              // sprite zero?
-              if (!i && possible_zerohit) {
-                rendering_zerohit = true;
-              }
-              break;
+                fg_palette = (scanline_sprites[i].attribute & 0x03) + 0x04;
+                fg_priority = (scanline_sprites[i].attribute & 0x20) == 0;
+                
+                if (i == 0 && possible_zerohit) {
+                    rendering_zerohit = true;
+                }
+                break;
             }
-          }
         }
-      }
+    }
+}
 
       // 3. priority mux (combing fg and bg)
       
@@ -414,7 +419,7 @@ void PPU::clk() {
       // calculate final colour
       // index = 0x3F00 + (palette * 4) + pixel
       // visible screen area
-      if (cycle < 257 && scanline >= 0) {
+      if (cycle >= 1 && cycle < 257 && scanline >= 0) {
         uint16_t palette_addr = 0x3F00 + (palette * 4) + pixel;
         // if pixel is 0, always points to 0x3F00 (bg colour)
         if (!(pixel & 0x03)) {
@@ -423,10 +428,10 @@ void PPU::clk() {
         uint8_t colour_index = ppu_read(palette_addr) & 0x3F;
         Pixel colour = palette_lut[colour_index];
         
-        this->screen_buffer[(scanline * 256) + (cycle - 1)] = (colour.r << 24)
-                                                            | (colour.g << 16)
-                                                            | (colour.b << 8)
-                                                            | 255;
+        this->screen_buffer[(scanline * 256) + (cycle - 1)] = 0xFF000000 
+                                                            | (colour.r << 16)
+                                                            | (colour.g << 8)
+                                                            |  colour.b;
       }
 
       // 5. update sprite shifters (dec x or shift)
@@ -619,8 +624,9 @@ void PPU::clk() {
   if (cycle >= 341) {
     cycle = 0;
     scanline++;
-    if (scanline >= 261) {
+    if (scanline >= 260) {
       scanline = -1;
+      frame_complete = true;
     }
   }
 }
