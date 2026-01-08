@@ -34,3 +34,4 @@
 bin/*
 compile_commands.json
 .cache/clangd/*
+roms/*
