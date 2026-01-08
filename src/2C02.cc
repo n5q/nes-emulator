@@ -341,9 +341,9 @@ void PPU::clk() {
       uint8_t fg_palette = 0x00;
       uint8_t fg_priority = 0x00;
 
-        if (mask & 0x10) {
-    rendering_zerohit = false;
-    for (uint8_t i = 0; i < n_sprites; i++) {
+      if (mask & 0x10) {
+        rendering_zerohit = false;
+        for (uint8_t i = 0; i < n_sprites; i++) {
         if (scanline_sprites[i].x == 0) {
             // read msb of sprite shifters
             uint8_t pixel_lo = (sprite_shifter_lo[i] & 0x80) > 0;

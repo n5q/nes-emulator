@@ -30,10 +30,10 @@ void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
     this->dma_transfer = true;
     // first cycle is a dummy/alignment cycle
     this->dma_alignment = true;
-    for (int i = 0; i < 256; i++) {
-      uint8_t val = bus->cpu_read((this->dma_page << 8) | i, false);
-      ppu->oam_p[i] = val;
-    }
+    // for (int i = 0; i < 256; i++) {
+    //   uint8_t val = bus->cpu_read((this->dma_page << 8) | i, false);
+    //   ppu->oam_p[i] = val;
+    // }
   }
 
   // controller strobe
