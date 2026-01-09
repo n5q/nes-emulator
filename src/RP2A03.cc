@@ -26,7 +26,8 @@ void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
   // writing to this register initiates dma transfer
   if (addr == 0x4014) {
     this->dma_page = data;
-    this->dma_addr = 0x00;
+    this->dma_addr = ppu->oam_addr;
+    this->dma_start_addr = ppu->oam_addr;
     this->dma_transfer = true;
     // first cycle is a dummy/alignment cycle
     this->dma_alignment = true;
@@ -92,12 +93,13 @@ void RP2A03::clk() {
       // write to PPU OAM (write cycle)
       else {
         // write directly to ppu oam memory
-        ppu->oam_p[dma_addr] = dma_data;
+        uint8_t oam_offset = dma_addr + dma_start_addr;
+        ppu->oam_p[oam_offset] = dma_data;
         // oam addr auto increments on the ppu side when written via registers
         // but since array is written to directly, need to manually increment
         dma_addr++;
         // finished after wrapping around (0x00 -> ... -> 0xFF -> 0x00)
-        if (dma_addr == 0x00) {
+        if (dma_addr == dma_start_addr) {
           dma_transfer = false;
           dma_alignment = true;
         }

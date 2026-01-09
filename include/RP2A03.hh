@@ -28,6 +28,7 @@ public:
   uint8_t dma_page = 0x00;
   uint8_t dma_addr = 0x00;
   uint8_t dma_data = 0x00;
+  uint8_t dma_start_addr = 0x00;
 
   // controller states
   // current state of buttons (snapshot)

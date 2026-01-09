@@ -299,20 +299,20 @@ void PPU::clk() {
       cycle = 1;
     }
     if (scanline == -1 && cycle == 1) {
-      status &= ~0x80; // clear vblank
-      status &= ~0x40; // clear sprite 0
-      status &= ~0x20; // clear overflow
+    status &= ~0x80; // clear vblank
+    status &= ~0x40; // clear sprite 0
+    status &= ~0x20; // clear overflow
 
-      // reset shifters
-      for (int i = 0; i < 8; i++) {
-        sprite_shifter_lo[i] = 0;
-        sprite_shifter_hi[i] = 0;
-      }
-      // bg_shifter_pattern_lo = 0;
-      // bg_shifter_pattern_hi = 0;
-      // bg_shifter_attrib_lo = 0;
-      // bg_shifter_attrib_hi = 0;
+    // reset shifters
+    for (int i = 0; i < 8; i++) {
+      sprite_shifter_lo[i] = 0;
+      sprite_shifter_hi[i] = 0;
     }
+    // bg_shifter_pattern_lo = 0;
+    // bg_shifter_pattern_hi = 0;
+    // bg_shifter_attrib_lo = 0;
+    // bg_shifter_attrib_hi = 0;
+  }
 
     // cycles 1-256 (visible) and 321-336 (prefetch for next line)
     if ((cycle >= 1 && cycle < 257) || (cycle >= 321 && cycle < 337)) {
@@ -359,9 +359,9 @@ void PPU::clk() {
                 }
                 break;
             }
+         }
         }
-    }
-}
+      }
 
       // 3. priority mux (combing fg and bg)
       
@@ -624,7 +624,7 @@ void PPU::clk() {
   if (cycle >= 341) {
     cycle = 0;
     scanline++;
-    if (scanline >= 260) {
+    if (scanline >= 261) {
       scanline = -1;
       frame_complete = true;
     }
