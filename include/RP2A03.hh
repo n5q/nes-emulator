@@ -32,9 +32,9 @@ public:
 
   // controller states
   // current state of buttons (snapshot)
-  uint8_t controller[2];
+  uint8_t controller[2] = {0};
   // shift register for serial reading
-  uint8_t controller_state[2];
+  uint8_t controller_state[2] = {0};
   uint8_t controller_strobe = 0x00;
 
 private:

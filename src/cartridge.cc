@@ -61,6 +61,7 @@ Cartridge::Cartridge(const std::string &romfile) {
         if (banks_CHR > 0) {
           ifs.read( (char*) mem_CHR.data(), mem_CHR.size());
         }
+        break;
         
       case 2:
         break;

@@ -393,11 +393,12 @@ void PPU::clk() {
           palette = bg_palette;
         }
         // zero hit detection
-        if (possible_zerohit && rendering_zerohit) {
+        if (possible_zerohit && rendering_zerohit && bg_pixel && fg_pixel) {
           // mask render foreground and render background (bits 4 and 3)
           if ((mask & 0x08) && (mask & 0x10)) {
             // left edge has special flags to fix inconsistencies when scrolling
             // mask bits 1 and 2
+            // check left clipping
             if ( !((mask & 0x02) | (mask & 0x04)) ) {
               if (cycle >= 9 && cycle < 258) {
                 // set the sprite zero hit flag

@@ -39,16 +39,26 @@ void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
 
   // controller strobe
   // if we write to $4016 we capture input
+  // if (addr == 0x4016) {
+  //   // detect falling edge to latch controller state
+  //   bool old_strobe = controller_strobe & 0x01;
+  //   bool new_strobe = data & 0x01;
+    
+  //   // latch on falling edge 
+  //   if (old_strobe && !new_strobe) {
+  //     controller_state[0] = controller[0];
+  //     controller_state[1] = controller[1];
+  //   }
+    
+  //   controller_strobe = data;
+  // }
+
   if (addr == 0x4016) {
-    // detect falling edge to latch controller state
-    bool old_strobe = controller_strobe & 0x01;
-    bool new_strobe = data & 0x01;
-    
-    // latch on falling edge 
-    if (old_strobe && !new_strobe) {
+    // when strobe goes from 1->0, latch state
+    if ((controller_strobe & 0x01) && !(data & 0x01)) {
       controller_state[0] = controller[0];
+      controller_state[1] = controller[1];
     }
-    
     controller_strobe = data;
   }
 }
@@ -63,12 +73,37 @@ uint8_t RP2A03::cpu_read(uint16_t addr, bool readonly) {
       data = (controller_state[0] & 0x80) ? 0x01 : 0x00;
       return data;
     }
-    
     // bit 0 = current MSB of controller state
     data = (controller_state[0] & 0x80) ? 0x01 : 0x00;
-    
-    // shift register for next button
-    controller_state[0] <<= 1;
+
+    if (controller_strobe & 0x01) {
+      // strobe high, constantly reload
+      controller_state[0] = controller[0];
+    }
+    else {
+      // strobe low, shift register
+      controller_state[0] <<= 1;
+    }
+  }
+
+  // read controller 2 ($4017)
+  else if (addr == 0x4017) {
+    // If readonly, dontt modify state (for debugging)
+    if (readonly) {
+      data = (controller_state[1] & 0x80) ? 0x01 : 0x00;
+      return data;
+    }
+    // bit 0 = current MSB of controller state
+    data = (controller_state[1] & 0x80) ? 0x01 : 0x00;
+
+    if (controller_strobe & 0x01) {
+      // strobe high, constantly reload
+      controller_state[1] = controller[1];
+    }
+    else {
+      // strobe low, shift register
+      controller_state[1] <<= 1;
+    }
   }
   
   return data;
@@ -80,26 +115,26 @@ void RP2A03::clk() {
   if (dma_transfer) {
     // wait for one cycle for synchronization
     if (dma_alignment) {
-      if (bus->sys_clocks % 2 == 0) {
+      if (bus->sys_clocks % 2 == 1) {
         dma_alignment = false;
       }
     }
     else {
       // dma can happen
-      if (bus->sys_clocks % 2 == 1) {
-        // read data from page specified
+      if (bus->sys_clocks % 2 == 0) {
+        // read data from page specified on even cycles
         dma_data = bus->cpu_read((uint16_t)(dma_page << 8) | dma_addr, false);
       }
       // write to PPU OAM (write cycle)
       else {
-        // write directly to ppu oam memory
-        uint8_t oam_offset = dma_addr + dma_start_addr;
-        ppu->oam_p[oam_offset] = dma_data;
+        // write directly to ppu oam memory on odd cycles
+        // uint8_t oam_offset = dma_addr + dma_start_addr;
+        ppu->oam_p[dma_addr] = dma_data;
         // oam addr auto increments on the ppu side when written via registers
         // but since array is written to directly, need to manually increment
         dma_addr++;
         // finished after wrapping around (0x00 -> ... -> 0xFF -> 0x00)
-        if (dma_addr == dma_start_addr) {
+        if (dma_addr == 0) {
           dma_transfer = false;
           dma_alignment = true;
         }

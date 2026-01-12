@@ -144,7 +144,7 @@ private:
   uint8_t status = 0x00;  // $2002 PPUSTATUS
 
   // nes screen is 256x240 but the ppu timing covers 361x262
-  int16_t scanline = 0; // 0 to 261
+  int16_t scanline = -1; // 0 to 261
   int16_t cycle = 0;    // 0 to 340
 
 
