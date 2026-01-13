@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>e</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #1a1a1a; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            color: white; 
+            font-family: sans-serif;
+        }
+        canvas.emscripten { 
+            border: 0px none; 
+            background-color: black;
+            image-rendering: pixelated;
+
+            width: 768px; 
+            height: 720px; 
+        }
+    </style>
+</head>
+<body>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
+
+    <script type='text/javascript'>
+        var Module = {
+            canvas: (function() {
+                var canvas = document.getElementById('canvas');
+                return canvas;
+            })()
+        };
+    </script>
+
+    {{{ SCRIPT }}}
+</body>
+</html>
