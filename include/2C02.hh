@@ -141,6 +141,7 @@ private:
 
   uint8_t ctrl = 0x00;    // $2000 PPUCTRL
   uint8_t mask = 0x00;    // $2001 PPUMASK
+  public:
   uint8_t status = 0x00;  // $2002 PPUSTATUS
 
   // nes screen is 256x240 but the ppu timing covers 361x262

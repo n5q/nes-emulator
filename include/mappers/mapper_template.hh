@@ -9,7 +9,7 @@ public:
   ~Mapper_Template();
 
   virtual bool cpu_mapread(uint16_t addr, uint32_t &addr_mapped) = 0;
-  virtual bool cpu_mapwrite(uint16_t addr, uint32_t &addr_mapped) = 0;
+  virtual bool cpu_mapwrite(uint16_t addr, uint32_t &addr_mapped, uint8_t data = 0) = 0;
   virtual bool ppu_mapread(uint16_t addr, uint32_t &addr_mapped) = 0;
   virtual bool ppu_mapwrite(uint16_t addr, uint32_t &addr_mapped) = 0;
 

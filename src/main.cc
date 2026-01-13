@@ -1,3 +1,5 @@
+#define DEBUG
+
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <memory>
@@ -90,6 +92,7 @@ int main(int argc, char* argv[]) {
             nes->clk();
         }
         nes->ppu.frame_complete = false;
+
 
         // rendering
         SDL_UpdateTexture(

@@ -10,7 +10,7 @@ public:
 
   
   bool cpu_mapread(uint16_t addr, uint32_t &addr_mapped) override;
-  bool cpu_mapwrite(uint16_t addr, uint32_t &addr_mapped) override;
+  bool cpu_mapwrite(uint16_t addr, uint32_t &addr_mapped, uint8_t data) override;
   bool ppu_mapread(uint16_t addr, uint32_t &addr_mapped) override;
   bool ppu_mapwrite(uint16_t addr, uint32_t &addr_mapped) override;
 };

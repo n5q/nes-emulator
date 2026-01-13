@@ -68,9 +68,15 @@ Cartridge::Cartridge(const std::string &romfile) {
     }
 
     switch (mapper_id) {
-      case 0:
-        mapper = std::make_shared<Mapper_000>(banks_PRG, banks_CHR);
-        break;
+      case 0: mapper = std::make_shared<Mapper_000>(banks_PRG, banks_CHR); break;
+      case 1: mapper = std::make_shared<Mapper_001>(banks_PRG, banks_CHR, [&](uint8_t mode) {
+        switch (mode) {
+          case 0: mirror = ONESCREEN_LO; break;
+          case 1: mirror = ONESCREEN_HI; break;
+          case 2: mirror = VERTICAL; break;
+          case 3: mirror = HORIZONTAL; break;
+      }});
+      break;
     }
 
     valid = true;
@@ -86,17 +92,37 @@ Cartridge::~Cartridge() {
 bool Cartridge::cpu_read(uint16_t addr, uint8_t &data) {
   uint32_t addr_mapped = 0;
   if (mapper->cpu_mapread(addr, addr_mapped)) {
-    data = this->mem_PRG[addr_mapped];
-    return true;
+      // for PRG-RAM read from mapper internal ram
+      if (addr >= 0x6000 && addr <= 0x7FFF && mapper_id == 1) {
+        auto mapper_001 = std::dynamic_pointer_cast<Mapper_001>(mapper);
+        if (mapper_001) {
+          data = mapper_001->prg_ram[addr_mapped];
+          return true;
+        }
+    }
+    else {
+      data = this->mem_PRG[addr_mapped];
+      return true;
+    }
   }
   return false;
 }
 
 bool Cartridge::cpu_write(uint16_t addr, uint8_t data) {
   uint32_t addr_mapped = 0;
-  if (mapper->cpu_mapwrite(addr, addr_mapped)) {
-    this->mem_PRG[addr_mapped] = data;
-    return true;
+  if (mapper->cpu_mapwrite(addr, addr_mapped, data)) {
+      // for prg-ram write to mappers internal ram
+      if (addr >= 0x6000 && addr <= 0x7FFF && mapper_id == 1) {
+        auto mapper_001 = std::dynamic_pointer_cast<Mapper_001>(mapper);
+        if (mapper_001) {
+          mapper_001->prg_ram[addr_mapped] = data;
+          return true;
+        }
+      }
+    else {
+      this->mem_PRG[addr_mapped] = data;
+      return true;
+    }
   }
   return false;
 }

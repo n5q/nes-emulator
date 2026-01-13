@@ -1,5 +1,6 @@
 #include "mos6502.hh"
 #include "bus.hh"
+#include <iostream>
 
 CPU::CPU() {
   #define INST(name, opcode, addr, inst_cycles) { name, &CPU::opcode, &CPU::addr, inst_cycles }
@@ -151,11 +152,20 @@ void CPU::fetch() {
   }
   // return m;
 }
-
+int ii = 0;
 void CPU::clk() {
   if (inst_cycles == 0) {
     opcode = read(pc++);
     CPU::Instruction inst = lookup[opcode];
+
+    #ifdef DEBUG
+    if (!(ii%1000)) {
+      std::cout << "Inst: " << inst.inst_name << " PC: " << pc << " A: " << +a << " X: " << +x << " Y: " << +y 
+      <<  '\n';
+      ii = 0;
+    } ii++;
+    #endif
+    
     inst_cycles = inst.inst_cycles;
 
     uint8_t a = (this->*inst.addr_mode)();
@@ -173,7 +183,7 @@ void CPU::reset() {
   x = 0;
   y = 0;
   sp = 0xFD;
-  psr = 0x00 | UNUSED;
+  psr = 0x00 | UNUSED | INTERRUPT;
 
   // reset vector - start executing code from here
   uint16_t reset_vector = 0xFFFC;
@@ -184,6 +194,8 @@ void CPU::reset() {
   addr = 0x0000;
   addr_branch = 0x0000;
   m = 0x0000;
+
+  inst_cycles = 7;
 }
 
 void CPU::irq() {
@@ -213,6 +225,10 @@ void CPU::irq() {
 
 // same as irq but not conditional on I flag and different address to jump to
 void CPU::nmi() {
+  #ifdef DEBUG
+  printf("CPU::nmi() called at PC=0x%04X\n", pc);
+  #endif
+  
   // write current pc to stack
   write(0x0100+sp, (pc >> 8) & 0x00FF);
   sp--;

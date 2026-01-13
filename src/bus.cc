@@ -20,6 +20,19 @@ Bus::~Bus() {
 }
 
 void Bus::cpu_write(uint16_t addr, uint8_t data) {
+  #ifdef DEBUG
+  if (addr == 0x2001) {
+  printf("PPUMASK write:  PC=%04X, A=%02X at SL=%d\n", cpu.pc - 1, cpu.a, ppu.scanline);
+}
+  // static bool first_frame = true;
+  static int write_count = 0;
+  
+  if (addr == 0x2001 && write_count < 100) {
+    printf("[%d] PPUMASK:   %02X at PC=%04X, SL=%d, Cycle=%d\n", 
+           write_count++, data, cpu.pc, ppu.scanline, ppu.cycle);
+  }
+  #endif
+
   // cart gets highest priority for all r/w
   if (cart->cpu_write(addr, data)) {
     // dont do anything, cart handled it
@@ -58,7 +71,13 @@ uint8_t Bus::cpu_read(uint16_t addr, bool readonly) {
   // 4. apu i/o registers
   else if (addr >= 0x4000 && addr <= 0x4017) {
     data = rp->cpu_read(addr, readonly);
-}
+  }
+
+  #ifdef DEBUG
+  if (cpu.pc >= 33105 && cpu.pc <= 33112 && !readonly) {
+    printf("= 0x%02X\n", data);
+  }
+  #endif
 
   return data;
 }
@@ -77,8 +96,22 @@ void Bus::clk() {
   ppu.clk();
 
   if (ppu.nmi) {
-    ppu.nmi = false;
-    cpu.nmi();
+    if (!rp->dma_transfer && cpu.inst_cycles == 0) {
+      #ifdef DEBUG
+      printf("NMI serviced at PC=0x%04X, SL=%d\n", cpu.pc, ppu.scanline);
+      #endif
+      ppu.nmi = false;
+      cpu.nmi();
+    }
+    #ifdef DEBUG
+    else {
+      static int nmi_wait_count = 0;
+      if (nmi_wait_count++ % 1000 == 0) {
+        printf("NMI waiting: DMA=%d, inst_cycles=%d\n", 
+             rp->dma_transfer, cpu.inst_cycles);
+      }
+    }
+    #endif
   }
 
   // every 3 ppu cycles

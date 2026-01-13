@@ -19,7 +19,7 @@ bool Mapper_000::cpu_mapread(uint16_t addr, uint32_t &addr_mapped) {
   return false;
 }
 
-bool Mapper_000::cpu_mapwrite(uint16_t addr, uint32_t &addr_mapped) {
+bool Mapper_000::cpu_mapwrite(uint16_t addr, uint32_t &addr_mapped, uint8_t data) {
   // if (addr >= 0x8000 && addr <= 0xFFFF) {
   //   addr_mapped = addr & (this->banks_PRG > 1 ? 0x7FFF : 0x3FFF);
   //   return true;

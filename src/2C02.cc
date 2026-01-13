@@ -173,6 +173,14 @@ uint8_t PPU::ppu_read(uint16_t addr, bool readonly ) {
         data = nametable[1][addr & 0x03FF];
       }
     }
+
+    else if (cart->mirror == Cartridge::ONESCREEN_LO) {
+      data = nametable[0][addr & 0x03FF];
+    }
+
+    else if (cart->mirror == Cartridge::ONESCREEN_HI) {
+      data = nametable[1][addr & 0x03FF];
+    }
     
   }
 
@@ -232,6 +240,14 @@ void PPU::ppu_write(uint16_t addr, uint8_t data) {
       if (addr >= 0x0C00 && addr <= 0x0FFF) {
         nametable[1][addr & 0x03FF] = data;
       }
+    }
+
+    else if (cart->mirror == Cartridge::ONESCREEN_LO) {
+      nametable[0][addr & 0x03FF] = data;
+    }
+
+    else if (cart->mirror == Cartridge::ONESCREEN_HI) {
+      nametable[1][addr & 0x03FF] = data;
     }
     
   }
@@ -316,6 +332,8 @@ void PPU::clk() {
 
     // cycles 1-256 (visible) and 321-336 (prefetch for next line)
     if ((cycle >= 1 && cycle < 257) || (cycle >= 321 && cycle < 337)) {
+
+      // update shifters before rendering
       this->update_shifters();
 
       // -- PIXEL OUTPUT & MUX --
@@ -343,27 +361,31 @@ void PPU::clk() {
 
       if (mask & 0x10) {
         rendering_zerohit = false;
+        
         for (uint8_t i = 0; i < n_sprites; i++) {
-        if (scanline_sprites[i].x == 0) {
+          if (scanline_sprites[i].x == 0) {
             // read msb of sprite shifters
             uint8_t pixel_lo = (sprite_shifter_lo[i] & 0x80) > 0;
             uint8_t pixel_hi = (sprite_shifter_hi[i] & 0x80) > 0;
-            fg_pixel = (pixel_hi << 1) | pixel_lo;
+            uint8_t sprite_pixel = (pixel_hi << 1) | pixel_lo;
             
-            if (fg_pixel) {
-                fg_palette = (scanline_sprites[i].attribute & 0x03) + 0x04;
-                fg_priority = (scanline_sprites[i].attribute & 0x20) == 0;
-                
-                if (i == 0 && possible_zerohit) {
-                    rendering_zerohit = true;
-                }
-                break;
+            // check for sprite 0 hit BEFORE checking if already found a visible sprite
+            // sprite 0 hit can occur even if sprite 0 is behind another sprite
+            if (i == 0 && possible_zerohit && sprite_pixel) {
+              rendering_zerohit = true;
             }
-         }
+            
+            // only use sprite for rendering if havent found a visible one yet
+            if (sprite_pixel && !fg_pixel) {
+              fg_pixel = sprite_pixel;
+              fg_palette = (scanline_sprites[i].attribute & 0x03) + 0x04;
+              fg_priority = (scanline_sprites[i].attribute & 0x20) == 0;
+            }
+          }
         }
       }
 
-      // 3. priority mux (combing fg and bg)
+      // 3. priority mux (combining fg and bg)
       
       uint8_t pixel = 0x00;
       uint8_t palette = 0x00;
@@ -383,7 +405,7 @@ void PPU::clk() {
         palette = bg_palette;
       }
 
-      else if (fg_pixel && bg_pixel){
+      else if (fg_pixel && bg_pixel) {
         if (fg_priority) {
           pixel = fg_pixel;
           palette = fg_palette;
@@ -392,24 +414,25 @@ void PPU::clk() {
           pixel = bg_pixel;
           palette = bg_palette;
         }
-        // zero hit detection
-        if (possible_zerohit && rendering_zerohit && bg_pixel && fg_pixel) {
-          // mask render foreground and render background (bits 4 and 3)
-          if ((mask & 0x08) && (mask & 0x10)) {
-            // left edge has special flags to fix inconsistencies when scrolling
-            // mask bits 1 and 2
-            // check left clipping
-            if ( !((mask & 0x02) | (mask & 0x04)) ) {
-              if (cycle >= 9 && cycle < 258) {
-                // set the sprite zero hit flag
-                status |= 0x40;
-              }
+      }
+
+      // sprite 0 hit detection - must be checked separately from priority mux
+      // sprite 0 hit occurs when a non-transparent sprite 0 pixel overlaps
+      // with a non-transparent background pixel, regardless of priority
+      if (bg_pixel && fg_pixel && possible_zerohit && rendering_zerohit) {
+        if ((mask & 0x08) && (mask & 0x10)) {
+          // left edge clipping flags
+          // mask bit 1 = show background in leftmost 8 pixels
+          // mask bit 2 = show sprites in leftmost 8 pixels
+          // EITHER is disabled -> sprite 0 hit cannot occur in x=0-7 (cycles 1-8)
+          if ((mask & 0x02) && (mask & 0x04)) {
+            if (cycle >= 1 && cycle < 256) {
+              status |= 0x40;
             }
-            else {
-              if (cycle >= 1 && cycle < 258) {
-                // set the sprite zero hit flag
-                status |= 0x40;
-              }
+          }
+          else {
+            if (cycle >= 9 && cycle < 256) {
+              status |= 0x40;
             }
           }
         }
@@ -421,9 +444,17 @@ void PPU::clk() {
       // index = 0x3F00 + (palette * 4) + pixel
       // visible screen area
       if (cycle >= 1 && cycle < 257 && scanline >= 0) {
-        uint16_t palette_addr = 0x3F00 + (palette * 4) + pixel;
-        // if pixel is 0, always points to 0x3F00 (bg colour)
-        if (!(pixel & 0x03)) {
+        uint8_t final_pixel = pixel;
+        uint8_t final_palette = palette;
+        
+        // if rendering disabled, output backdrop color
+        if (!(mask & 0x18)) {
+          final_pixel = 0;
+          final_palette = 0;
+        }
+        
+        uint16_t palette_addr = 0x3F00 + (final_palette * 4) + final_pixel;
+        if (!(final_pixel & 0x03)) {
           palette_addr = 0x3F00;
         }
         uint8_t colour_index = ppu_read(palette_addr) & 0x3F;
@@ -434,6 +465,7 @@ void PPU::clk() {
                                                             | (colour.g << 8)
                                                             |  colour.b;
       }
+
 
       // 5. update sprite shifters (dec x or shift)
       if (mask & 0x10) {
@@ -516,7 +548,7 @@ void PPU::clk() {
       load_bg_shifters();
       transfer_addr_x();
 
-      // SPRITE EVALUATION:
+      // SPRITE EVALUATION:  
       // 1. clear list of visible sprites
       n_sprites = 0;
       possible_zerohit = false;
@@ -531,15 +563,15 @@ void PPU::clk() {
 
       // 2. iterate through OAM to find sporites on this scanline
       uint8_t oam_entries = 0;
+      uint8_t sprite_height = (ctrl & 0x20) ? 16 : 8;
+      
       while (oam_entries < 64 && n_sprites < 8) {
-        // diff between current scanline and sprite y
-        int16_t diff = ((int16_t) scanline - (int16_t) oam[oam_entries].y);
-        // check if sprite is visible (diff between 0-8 or 0-16 for 8x16 mode)
-        int16_t spr_height = (ctrl & 0x20) ? 16 : 8;
-        if (diff >= 0 && diff < spr_height) {
+        int16_t diff = scanline - (int16_t)oam[oam_entries]. y;
+        if (diff >= 0 && diff < sprite_height) {
           // sprite visible - copy to secondary oam
           if (n_sprites < 8) {
             // zero hit
+            // sprite 0 is being evaluated
             // TODO: flag check logic
             if (oam_entries == 0) {
               possible_zerohit = true;
@@ -552,9 +584,6 @@ void PPU::clk() {
       }
 
       // 3. set sprite overflow flag (status but 5)
-      // real implementation is bugged but here the bug is ignored for simplicity
-      // no games make use of the bug
-      // https://www.nesdev.org/wiki/PPU_sprite_evaluation#Sprite_overflow_bug
       status &= ~0x20;
       if (n_sprites >= 8) {
         status |= 0x20;
@@ -569,31 +598,54 @@ void PPU::clk() {
         uint8_t spr_pattern_bits_hi;
         uint16_t spr_pattern_addr;
 
+        // which row of the sprite to render
+        uint16_t sprite_row = scanline - scanline_sprites[i].y;
+
         // determine address of sprite pattern
         // 8x8 mode
         if (!(ctrl & 0x20)) {
-          // bit 3 tells which pattern table
+          //  which pattern table
           uint16_t table_addr = (ctrl & 0x08) ? 0x1000 : 0x0000;
-          uint16_t cell_addr = (uint16_t) scanline_sprites[i].tile_id << 4;
-          // row within title ( handling vflip)
-          uint16_t row_addr = (scanline - scanline_sprites[i].y);
+          uint16_t cell_addr = (uint16_t)scanline_sprites[i].tile_id << 4;
+          
+          // row within tile (handling vflip)
+          uint16_t row_addr = sprite_row;
           if (scanline_sprites[i].attribute & 0x80) {
             row_addr = 7 - row_addr;
           }
           spr_pattern_addr = table_addr + cell_addr + row_addr;
         }
 
-        // TODO: 8x16 mode
+        // 8x16 mode
         else {
-          spr_pattern_addr = 0;
+          // PPUCTRL bit 3 is ignored.  LSB of the tile id determines the pattern table.
+          uint16_t table_addr = (scanline_sprites[i].tile_id & 0x01) << 12;
+          // top 7 bits form the tile index
+          uint16_t tile_index = scanline_sprites[i].tile_id & 0xFE;
+          
+          // calculate row within the 16-pixel high sprite (0 to 15)
+          uint16_t row_addr = sprite_row;
+          if (scanline_sprites[i].attribute & 0x80) {
+            // vertical flip - invert the row
+            row_addr = 15 - row_addr;
+          }
+
+          if (row_addr < 8) {
+            // top half - use the base tile index
+            spr_pattern_addr = table_addr + (tile_index << 4) + row_addr;
+          }
+          else {
+            // bottom half - use the next tile index
+            spr_pattern_addr = table_addr + ((tile_index + 1) << 4) + (row_addr - 8);
+          }
         }
 
-        // fetch data
+        // fetch pattern data
         spr_pattern_bits_lo = ppu_read(spr_pattern_addr);
         spr_pattern_bits_hi = ppu_read(spr_pattern_addr + 8);
 
         // hflip (reverse byte)
-        if (scanline_sprites[i].attribute & 0x40) {
+        if (scanline_sprites[i]. attribute & 0x40) {
           spr_pattern_bits_lo = reverse_bits(spr_pattern_bits_lo);
           spr_pattern_bits_hi = reverse_bits(spr_pattern_bits_hi);
         }
@@ -646,12 +698,12 @@ void PPU::load_bg_shifters() {
 
 void PPU::update_shifters() {
   // only if rendering is enabled
-  if (mask & 0x18) {
+  // if (mask & 0x18) {
     bg_shifter_pattern_lo <<= 1;
     bg_shifter_pattern_hi <<= 1;
     bg_shifter_attrib_lo <<= 1;
     bg_shifter_attrib_hi <<= 1;
-  }
+  // }
 }
 
 void PPU::inc_scroll_x() {
