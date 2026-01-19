@@ -22,10 +22,9 @@ public:
   uint8_t cpu_read(uint16_t addr, bool readonly);
 
   PPU ppu;
-
   std::shared_ptr<RP2A03> rp;
-
   std::shared_ptr<Cartridge> cart;
+  std::shared_ptr<APU> apu;
 
   // interface
   void insert_cartridge(const std::shared_ptr<Cartridge>& cart);

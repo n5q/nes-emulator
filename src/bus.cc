@@ -116,10 +116,10 @@ void Bus::clk() {
 
   // every 3 ppu cycles
   if (!(sys_clocks % 3)) {
+    rp->clk();
     // check if dma hijacking bus
     if (rp->dma_transfer) {
       // suspend cpu if dma
-      rp->clk();
     }
     else {
       // normal

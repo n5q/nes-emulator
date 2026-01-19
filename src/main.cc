@@ -1,3 +1,6 @@
+#include <SDL2/SDL_audio.h>
+#include <SDL2/SDL_stdinc.h>
+#include <cstddef>
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <memory>
@@ -12,7 +15,18 @@ std::shared_ptr<Bus> nes;
 SDL_Window* window = nullptr;
 SDL_Renderer* renderer = nullptr;
 SDL_Texture* texture = nullptr;
+SDL_AudioDeviceID audio_device = 0;
 bool running = true;
+
+void audio_callback(void* userdata, Uint8* stream, int len) {
+    Bus* bus = (Bus*) userdata;
+    float* fstream = (float*) stream;
+    int n_samples = len / sizeof(float);
+
+    for (int i = 0; i < n_samples; i++) {
+        fstream[i] = bus->rp->apu.get_audio_sample();
+    }
+}
 
 void main_loop() {
     if (!running) {
@@ -68,7 +82,7 @@ void main_loop() {
 
 int main(int argc, char* argv[]) {
     // SDL init
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
         return -1;
     }
 
@@ -113,6 +127,18 @@ int main(int argc, char* argv[]) {
     nes->insert_cartridge(cart);
     nes->reset();
 
+    // audio setup
+    SDL_AudioSpec want, have;
+    SDL_zero(want);
+    want.freq = 44100;
+    want.format = AUDIO_F32;
+    want.channels = 1;
+    want.samples = 512;
+    want.callback = audio_callback;
+    want.userdata = nes.get();
+    audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    SDL_PauseAudioDevice(audio_device, 0);
+
     #ifdef __EMSCRIPTEN__
     // 0 fps = let browser decide (60?), 1 = simulate infinite loop
     emscripten_set_main_loop(main_loop, 0, 1);
@@ -122,6 +148,9 @@ int main(int argc, char* argv[]) {
     }
     #endif
 
+    if (audio_device) {
+        SDL_CloseAudioDevice(audio_device);
+    }
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

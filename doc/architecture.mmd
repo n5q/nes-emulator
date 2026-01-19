@@ -1,0 +1,170 @@
+---
+config:
+  layout: elk
+  look: neo
+  theme: redux
+---
+flowchart TB
+ subgraph Main["Main Application (main.cc)"]
+        SDL["SDL2 Interface"]
+        MainLoop["Main Loop"]
+        Input["Controller Input"]
+        Display["Screen Rendering"]
+  end
+ subgraph BusSystem["Bus System (bus.hh/cc)"]
+        Bus["Bus<br>Main System Bus"]
+        CPUMem["CPU RAM<br>2KB"]
+        SysClk["System Clock<br>Counter"]
+  end
+ subgraph CPURegs["CPU Registers"]
+        RegA["A - Accumulator"]
+        RegX["X Register"]
+        RegY["Y Register"]
+        RegPC["PC - Program Counter"]
+        RegSP["SP - Stack Pointer"]
+        RegPSR["PSR - Status Flags"]
+  end
+ subgraph CPUOps["CPU Operations"]
+        AddrModes["12 Addressing Modes"]
+        Instructions["56 Legal Opcodes"]
+        Interrupts["IRQ/NMI/RESET"]
+  end
+ subgraph CPUSubsystem["CPU Subsystem"]
+        CPU["MOS6502 CPU<br>mos6502.hh/cc"]
+        RP2A03["RP2A03<br>Controller &amp; DMA"]
+        CPURegs
+        CPUOps
+  end
+ subgraph PPUMem["PPU Memory"]
+        NameTables["Name Tables<br>2x 1KB"]
+        PaletteRAM["Palette RAM<br>32 bytes"]
+        OAM["OAM<br>Object Attribute Memory<br>64 Sprites"]
+  end
+ subgraph PPURegs["PPU Registers"]
+        PPUCTRL["PPUCTRL - $2000"]
+        PPUMASK["PPUMASK - $2001"]
+        PPUSTATUS["PPUSTATUS - $2002"]
+        OAMADDR["OAMADDR - $2003"]
+        OAMDATA["OAMDATA - $2004"]
+        PPUSCROLL["PPUSCROLL - $2005"]
+        PPUADDR["PPUADDR - $2006"]
+        PPUDATA["PPUDATA - $2007"]
+  end
+ subgraph Rendering["Rendering Pipeline"]
+        BGRender["Background Rendering<br>Shifters &amp; Latches"]
+        SpriteRender["Sprite Rendering<br>8 Sprite Shifters"]
+        PixelMux["Pixel Multiplexer<br>Priority Logic"]
+  end
+ subgraph PPUSubsystem["PPU Subsystem (2C02)"]
+        PPU["2C02 PPU<br>Picture Processing Unit"]
+        PPUMem
+        PPURegs
+        Rendering
+  end
+ subgraph CartMem["Cartridge Memory"]
+        PRGROM["PRG-ROM<br>Program Memory"]
+        CHRROM["CHR-ROM/RAM<br>Character Memory"]
+  end
+ subgraph Mapper001Internal["MMC1 Internal"]
+        ShiftReg["Shift Register"]
+        CtrlReg["Control Register"]
+        CHRBanks["CHR Bank Registers"]
+        PRGBank["PRG Bank Register"]
+        PRGRAM["PRG-RAM 8KB"]
+  end
+ subgraph MapperSys["Mapper System"]
+        MapperBase["Mapper Template<br>Base Class"]
+        Mapper000["Mapper 000<br>NROM"]
+        Mapper001["Mapper 001<br>MMC1"]
+        Mapper001Internal
+  end
+ subgraph CartridgeSystem["Cartridge System"]
+        Cart["Cartridge<br>cartridge.hh/cc"]
+        CartMem
+        MapperSys
+  end
+ subgraph APUChannels["Audio Channels"]
+        Pulse1["Pulse 1"]
+        Pulse2["Pulse 2"]
+        Triangle["Triangle"]
+        Noise["Noise"]
+        DMC["DMC"]
+  end
+ subgraph APUSubsystem["APU Subsystem (Placeholder)"]
+        APU["APU<br>Audio Processing Unit"]
+        APUChannels
+  end
+    SDL --> MainLoop
+    MainLoop --> Bus
+    Input --> RP2A03
+    Display <--> PPU
+    Bus --> CPU & PPU & RP2A03 & Cart & CPUMem & APU
+    CPU --> RegA & RegX & RegY & RegPC & RegSP & RegPSR & AddrModes & Instructions & Interrupts
+    RP2A03 --> PPU
+    RP2A03 -. DMA Transfer .-> OAM
+    PPU --> NameTables & PaletteRAM & OAM & PPUCTRL & PPUMASK & PPUSTATUS & OAMADDR & OAMDATA & PPUSCROLL & PPUADDR & PPUDATA & BGRender & SpriteRender & PixelMux
+    BGRender --> PixelMux
+    SpriteRender --> PixelMux
+    PixelMux --> Display
+    Cart --> PRGROM & CHRROM & MapperBase
+    MapperBase --> Mapper000 & Mapper001
+    Mapper001 --> ShiftReg & CtrlReg & CHRBanks & PRGBank & PRGRAM
+    PRGROM <--> Bus
+    CHRROM <--> PPU
+    APU --> Pulse1 & Pulse2 & Triangle & Noise & DMC
+    SysClk -. 3:1 Clock Rati .-> PPU
+    SysClk --> CPU
+    PPU -. NMI Signal .-> CPU
+
+     Bus:::bus
+     CPUMem:::memory
+     SysClk:::bus
+     CPU:::cpu
+     RP2A03:::cpu
+     RegA:::cpu
+     RegX:::cpu
+     RegY:::cpu
+     RegPC:::cpu
+     RegSP:::cpu
+     RegPSR:::cpu
+     AddrModes:::cpu
+     Instructions:::cpu
+     Interrupts:::cpu
+     PPU:::ppu
+     NameTables:::ppu
+     PaletteRAM:::ppu
+     OAM:::ppu
+     PPUCTRL:::ppu
+     PPUMASK:::ppu
+     PPUSTATUS:::ppu
+     OAMADDR:::ppu
+     OAMDATA:::ppu
+     PPUSCROLL:::ppu
+     PPUADDR:::ppu
+     PPUDATA:::ppu
+     BGRender:::ppu
+     SpriteRender:::ppu
+     PixelMux:::ppu
+     Cart:::cart
+     PRGROM:::memory
+     CHRROM:::memory
+     MapperBase:::cart
+     Mapper000:::cart
+     Mapper001:::cart
+     ShiftReg:::cart
+     CtrlReg:::cart
+     CHRBanks:::cart
+     PRGBank:::cart
+     PRGRAM:::memory
+     APU:::apu
+     Pulse1:::apu
+     Pulse2:::apu
+     Triangle:::apu
+     Noise:::apu
+     DMC:::apu
+    classDef cpu fill:#f9a,stroke:#333,stroke-width:2px
+    classDef ppu fill:#9cf,stroke:#333,stroke-width:2px
+    classDef memory fill:#ffa,stroke:#333,stroke-width:2px
+    classDef cart fill:#cfc,stroke:#333,stroke-width:2px
+    classDef bus fill:#fcf,stroke:#333,stroke-width:2px
+    classDef apu fill:#fcc,stroke:#333,stroke-width:2px
