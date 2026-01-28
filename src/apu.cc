@@ -274,8 +274,10 @@ void APU::clk() {
   }
 
   // clock timers every cpu cycle
-  pulse[0].clock_timer();
-  pulse[1].clock_timer();
+  if (this->frame_clock_counter % 2) {
+    pulse[0].clock_timer();
+    pulse[1].clock_timer();
+  }
   triangle.clock_timer();
   noise.clock_timer();
   dmc.clock_timer();

@@ -24,7 +24,7 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
     int n_samples = len / sizeof(float);
 
     for (int i = 0; i < n_samples; i++) {
-        fstream[i] = bus->rp->apu.get_audio_sample();
+        fstream[i] = bus->pop_audio_sample();
     }
 }
 
@@ -64,6 +64,11 @@ void main_loop() {
     // one frame
     while (!nes->ppu.frame_complete) {
         nes->clk();
+
+        if (nes->sys_clocks % 122 == 0) {
+            float sample = nes->rp->apu.get_audio_sample();
+            nes->push_audio_sample(sample);
+        }
     }
     nes->ppu.frame_complete = false;
 

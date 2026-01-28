@@ -468,7 +468,7 @@ void PPU::clk() {
 
 
       // 5. update sprite shifters (dec x or shift)
-      if (mask & 0x10) {
+      if ((cycle >= 1 && cycle < 257) && (mask & 0x10)) {
         for (int i = 0; i < n_sprites; i++) {
           if (scanline_sprites[i].x > 0) {
             scanline_sprites[i].x--;

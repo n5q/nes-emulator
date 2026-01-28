@@ -128,3 +128,24 @@ void Bus::clk() {
   }
   sys_clocks++;
 }
+
+void Bus::push_audio_sample(float sample) {
+  audio_buf[audio_write_pos] = sample;
+  audio_write_pos = (audio_write_pos + 1) % AUDIO_BUF_SIZE;
+}
+
+float Bus::pop_audio_sample() {
+  if (audio_read_pos == audio_write_pos) {
+    return 0.0f;
+  }
+  float sample = audio_buf[audio_read_pos];
+  audio_read_pos = (audio_read_pos + 1) % AUDIO_BUF_SIZE;
+  return sample;
+}
+
+int Bus::get_audio_buf_size() {
+  if (audio_write_pos >= audio_read_pos) {
+    return audio_write_pos - audio_read_pos;
+  }
+  return AUDIO_BUF_SIZE - audio_read_pos + audio_write_pos;
+}

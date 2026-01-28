@@ -32,6 +32,15 @@ public:
   void clk();
 
   uint32_t sys_clocks = 0;
+
+  static const int AUDIO_BUF_SIZE = 4096;
+  float audio_buf[AUDIO_BUF_SIZE];
+  int audio_write_pos = 0;
+  int audio_read_pos = 0;
+
+  void push_audio_sample(float sample);
+  float pop_audio_sample();
+  int get_audio_buf_size();
 };
 
 #endif
