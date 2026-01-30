@@ -12,6 +12,7 @@ RP2A03::~RP2A03() {
 
 void RP2A03::connect_bus(Bus* b) {
   this->bus = b;
+  this->apu.connect_bus(b);
 }
 
 void RP2A03::connect_ppu(std::shared_ptr<PPU> p) {
@@ -20,7 +21,10 @@ void RP2A03::connect_ppu(std::shared_ptr<PPU> p) {
 
 // 2A03 interprets writes to $4000 - $4017
 void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
-  // TODO: APU registers go here
+  // apu channels
+  if (addr >= 0x4000 && addr <= 0x4013) {
+    this->apu.cpu_write(addr, data);
+  }
 
   // -- OAM DMA --
   // writing to this register initiates dma transfer
@@ -53,6 +57,11 @@ void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
   //   controller_strobe = data;
   // }
 
+  // apu status
+  if (addr == 0x4015) {
+    this->apu.cpu_write(addr, data);
+  }
+
   if (addr == 0x4016) {
     // when strobe goes from 1->0, latch state
     if ((controller_strobe & 0x01) && !(data & 0x01)) {
@@ -61,10 +70,20 @@ void RP2A03::cpu_write(uint16_t addr, uint8_t data) {
     }
     controller_strobe = data;
   }
+  
+  // apu frame counter
+  if (addr == 0x4017) {
+    this->apu.cpu_write(addr, data);
+  }
 }
 
 uint8_t RP2A03::cpu_read(uint16_t addr, bool readonly) {
   uint8_t data = 0x00;
+
+  // apu status
+  if (addr == 0x4015) {
+    data = apu.cpu_read(addr, readonly);
+  }
 
   // read controller 1 ($4016)
   if (addr == 0x4016) {
@@ -142,9 +161,7 @@ void RP2A03::clk() {
     }
   }
 
-  else {
-    // TODO : APU 
-  }
-  
+  // clock apu
+  this->apu.clk();
 }
 

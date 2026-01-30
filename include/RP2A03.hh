@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include "apu.hh"
 
 class Bus;
 class PPU;
@@ -20,6 +21,7 @@ public:
   uint8_t cpu_read(uint16_t addr, bool readonly = false);
 
   void clk();
+  void reset();
 
   // DMA
   // DMA transfer suspends cpu for 513/514 cycles
@@ -36,6 +38,8 @@ public:
   // shift register for serial reading
   uint8_t controller_state[2] = {0};
   uint8_t controller_strobe = 0x00;
+
+  APU apu;
 
 private:
   Bus* bus = nullptr;
