@@ -2,125 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>nes</title>
+    <title>e</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body { 
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            margin: 0; 
+            background-color: #1a1a1a; 
             display: flex; 
             flex-direction: column;
             justify-content: center; 
             align-items: center; 
-            min-height: 100vh; 
-            color: #e0e0e0; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 20px;
+            height: 100vh; 
+            color: white; 
+            font-family: sans-serif;
         }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            max-width: 100%;
-        }
-
-        .game-wrapper {
-            position: relative;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-        }
-
         canvas.emscripten { 
             border: 0px none; 
-            background-color: #000;
+            background-color: black;
             image-rendering: pixelated;
-            image-rendering: crisp-edges;
+
             width: 768px; 
             height: 720px; 
-            display: block;
         }
-
-        .controls {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 16px 24px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .controls-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #a0a0a0;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .controls-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            justify-content: center;
-        }
-
-        .key {
-            background: linear-gradient(145deg, #2a2a3e, #1f1f2e);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-            padding: 6px 12px;
-            font-size: 13px;
-            font-weight: 500;
-            color: #fff;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            min-width: 36px;
-            text-align: center;
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 800px) {
-            canvas.emscripten {
-                width: 100%;
-                height: auto;
-                max-width: 768px;
-                aspect-ratio: 768 / 720;
-            }
-
-            .controls {
-                width: 100%;
-                max-width: 768px;
-            }
+        p {
+            margin: 0 0 10px 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="game-wrapper">
-            <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
-        </div>
+    <p>Controls: A, S, Z, X, Up, Down, Left, Right</p>
 
-        <div class="controls">
-            <div class="controls-title">Controls</div>
-            <div class="controls-list">
-                <span class="key">A</span>
-                <span class="key">S</span>
-                <span class="key">Z</span>
-                <span class="key">X</span>
-                <span class="key">↑</span>
-                <span class="key">↓</span>
-                <span class="key">←</span>
-                <span class="key">→</span>
-            </div>
-        </div>
-    </div>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex=-1></canvas>
 
     <script type='text/javascript'>
         var Module = {

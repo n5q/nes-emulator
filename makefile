@@ -30,5 +30,6 @@ $(BIN_DIR)/%.o: $(SRC_DIR)/%.cc
 # Clean build artifacts
 clean:
 	rm -rf $(BIN_DIR) $(TARGET)
+	rm -rf web/index*
 
 .PHONY: all clean
