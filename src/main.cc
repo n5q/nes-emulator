@@ -4,7 +4,6 @@
 #include <iostream>
 #include <SDL2/SDL.h>
 #include <memory>
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -19,10 +18,6 @@ SDL_Texture* texture = nullptr;
 SDL_AudioDeviceID audio_device = 0;
 bool running = true;
 
-// timing
-double last_frame_time = 0;
-const double MS_PER_FRAME = 1000.0 / 60.098; // NTSC target rate
-
 void audio_callback(void* userdata, Uint8* stream, int len) {
     Bus* bus = (Bus*) userdata;
     float* fstream = (float*) stream;
@@ -35,26 +30,12 @@ void audio_callback(void* userdata, Uint8* stream, int len) {
 
 void main_loop() {
     if (!running) {
-#ifdef __EMSCRIPTEN__
+        #ifdef __EMSCRIPTEN__
         emscripten_cancel_main_loop();
-#endif
+        #endif
         return;
     }
 
-    // 1. Limiting for high refresh displays
-#ifdef __EMSCRIPTEN__
-    double current_time = emscripten_get_now();
-#else
-    double current_time = SDL_GetTicks();
-#endif
-    double elapsed = current_time - last_frame_time;
-
-    if (elapsed < MS_PER_FRAME) {
-        return; // exit early to wait for the next frame
-    }
-    last_frame_time = current_time;
-
-    // 2. Event Handling
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_QUIT) {
@@ -65,7 +46,7 @@ void main_loop() {
         }
     }
 
-    // 3. Controller Inputs
+    // controller 
     const uint8_t* keys = SDL_GetKeyboardState(nullptr);
     uint8_t controller = 0x00;
 
@@ -80,11 +61,10 @@ void main_loop() {
 
     nes->rp->controller[0] = controller;
 
-    // 4. Emulate One Frame
+    // one frame
     while (!nes->ppu.frame_complete) {
         nes->clk();
 
-        // Audio sampling sync
         if (nes->sys_clocks % 122 == 0) {
             float sample = nes->rp->apu.get_audio_sample();
             nes->push_audio_sample(sample);
@@ -92,7 +72,7 @@ void main_loop() {
     }
     nes->ppu.frame_complete = false;
 
-    // 5. Rendering
+    // rendering
     SDL_UpdateTexture(
         texture,
         nullptr,
@@ -164,14 +144,22 @@ int main(int argc, char* argv[]) {
     audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     SDL_PauseAudioDevice(audio_device, 0);
 
-#ifdef __EMSCRIPTEN__
-    // Set to 0 to use requestAnimationFrame, and false to avoid blocking the browser thread
-    emscripten_set_main_loop(main_loop, 0, false);
-#else
+    #ifdef __EMSCRIPTEN__
+    // 0 fps = let browser decide (60?), 1 = simulate infinite loop
+    emscripten_set_main_loop(main_loop, 0, 1);
+    #else
     while(running) {
         main_loop();
     }
-#endif
+    #endif
+
+    if (audio_device) {
+        SDL_CloseAudioDevice(audio_device);
+    }
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
     return 0;
 }
